@@ -40,10 +40,10 @@ def run_query(sql, params=None):
         return pd.DataFrame()
 
 # ============================================
-# Sidebar — База даних
+# Safe query (rollback on error)
 # ============================================
 def safe_query(sql, params=None):
-    """Запит з autocommit — помилка в одному не ламає інші."""
+    """Запит з rollback — помилка в одному не ламає інші."""
     conn = get_conn()
     try:
         df = pd.read_sql(sql, conn, params=params)
@@ -55,128 +55,6 @@ def safe_query(sql, params=None):
         except:
             pass
         return pd.DataFrame()
-
-def render_sidebar_db():
-    st.sidebar.markdown("## 🗄️ База даних")
-
-    if st.sidebar.button("🔄 Оновити БД інфо"):
-        st.cache_resource.clear()
-        st.rerun()
-
-    # ── Загальний розмір БД ──
-    db_size = safe_query("""
-        SELECT pg_size_pretty(pg_database_size(current_database())) as size
-    """)
-    if not db_size.empty:
-        st.sidebar.metric("📦 Розмір БД", db_size.iloc[0]["size"])
-
-    # ── Всі таблиці + розміри ──
-    tables_info = safe_query("""
-        SELECT
-            schemaname || '.' || relname as table_name,
-            n_live_tup as rows,
-            pg_size_pretty(pg_total_relation_size(relid)) as total_size,
-            pg_total_relation_size(relid) as size_bytes
-        FROM pg_stat_user_tables
-        ORDER BY pg_total_relation_size(relid) DESC
-    """)
-
-    if not tables_info.empty:
-        total_tables = len(tables_info)
-        total_rows = tables_info["rows"].sum()
-        st.sidebar.metric("📊 Таблиць", f"{total_tables}")
-        st.sidebar.metric("📝 Рядків (всього)", f"{total_rows:,.0f}")
-
-    st.sidebar.divider()
-
-    # ── Freshness: один запит — всі таблиці з timestamp колонками ──
-    ts_columns = safe_query("""
-        SELECT DISTINCT ON (table_schema, table_name)
-            table_schema || '.' || table_name as full_name,
-            column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND data_type IN ('timestamp with time zone', 'timestamp without time zone')
-        ORDER BY table_schema, table_name,
-            CASE
-                WHEN column_name = 'updated_at' THEN 1
-                WHEN column_name = 'created_at' THEN 2
-                WHEN column_name LIKE '%_at' THEN 3
-                WHEN column_name LIKE '%_date' THEN 4
-                ELSE 5
-            END,
-            ordinal_position
-    """)
-
-    last_writes = {}
-    if not ts_columns.empty:
-        # Будуємо один UNION ALL запит
-        parts = []
-        for _, row in ts_columns.iterrows():
-            tname = row["full_name"]
-            col = row["column_name"]
-            parts.append(
-                f"SELECT '{tname}' as tbl, "
-                f"MAX({col}::timestamptz) as last_write "
-                f"FROM {tname}"
-            )
-
-        if parts:
-            union_sql = " UNION ALL ".join(parts)
-            freshness = safe_query(union_sql)
-            if not freshness.empty:
-                for _, row in freshness.iterrows():
-                    if pd.notna(row["last_write"]):
-                        last_writes[row["tbl"]] = row["last_write"]
-
-    # ── Рендер таблиць в сайдбарі ──
-    st.sidebar.markdown("### 📋 Таблиці")
-
-    if not tables_info.empty:
-        now = datetime.now(KYIV_TZ)
-
-        for _, row in tables_info.iterrows():
-            tname = row["table_name"]
-            rows = int(row["rows"]) if pd.notna(row["rows"]) else 0
-            size = row["total_size"]
-            last = last_writes.get(tname)
-
-            if last is not None:
-                try:
-                    last_dt = pd.to_datetime(last, utc=True).astimezone(KYIV_TZ)
-                    last_str = last_dt.strftime("%d.%m %H:%M")
-                    diff = now - last_dt
-                    total_hours = diff.total_seconds() / 3600
-
-                    if diff.days > 0:
-                        ago = f" ({diff.days}д тому)"
-                    elif total_hours >= 1:
-                        ago = f" ({int(total_hours)}г тому)"
-                    else:
-                        ago = f" ({int(diff.total_seconds() // 60)}хв тому)"
-
-                    if total_hours < 6:
-                        fresh_icon = "🟢"
-                    elif total_hours < 24:
-                        fresh_icon = "🟡"
-                    else:
-                        fresh_icon = "🔴"
-                except:
-                    last_str = "—"
-                    ago = ""
-                    fresh_icon = "⚪"
-            else:
-                last_str = "—"
-                ago = ""
-                fresh_icon = "⚪"
-
-            short_name = tname.replace("public.", "")
-            st.sidebar.markdown(
-                f"**{fresh_icon} {short_name}**  \n"
-                f"📊 `{rows:,}` rows · 💾 `{size}`  \n"
-                f"🕒 {last_str}{ago}"
-            )
-            st.sidebar.markdown("---")
 
 # ============================================
 # Queries — ETL Health
@@ -378,122 +256,275 @@ def chart_retry_effectiveness(summary):
     return fig
 
 # ============================================
-# Sidebar
+# Sidebar — навігація
 # ============================================
-render_sidebar_db()
+st.sidebar.markdown("## 📡 ETL Monitor")
+page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних"], label_visibility="collapsed")
+
+if st.sidebar.button("🔄 Оновити"):
+    st.cache_resource.clear()
+    st.rerun()
 
 # ============================================
-# Main page — ETL Health
+# PAGE: База даних
 # ============================================
-st.markdown("## 🏥 ETL Health Monitor")
+if page == "🗄️ База даних":
+    st.markdown("## 🗄️ База даних")
 
-col_period, col_refresh = st.columns([3, 1])
-with col_period:
-    days = st.selectbox("Період", [1, 3, 7, 14, 30],
-                        index=2, format_func=lambda d: f"Останні {d} днів")
-with col_refresh:
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 Оновити"):
-        st.cache_resource.clear()
-        st.rerun()
+    # ── Загальні метрики ──
+    db_size = safe_query("""
+        SELECT pg_size_pretty(pg_database_size(current_database())) as size,
+               pg_database_size(current_database()) as size_bytes
+    """)
 
-summary = load_summary(days)
-if summary.empty:
-    st.warning("Немає даних в loader_runs. Scheduler v2.4 ще не записував історію.")
-    st.info("Дані з'являться після першого запуску лоадера з run_forever.py v2.4")
-    st.stop()
+    tables_info = safe_query("""
+        SELECT
+            schemaname || '.' || relname as table_name,
+            relname,
+            schemaname,
+            n_live_tup as rows,
+            pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+            pg_total_relation_size(relid) as size_bytes,
+            pg_size_pretty(pg_relation_size(relid)) as data_size,
+            pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) as index_size
+        FROM pg_stat_user_tables
+        ORDER BY pg_total_relation_size(relid) DESC
+    """)
 
-# ── KPI cards ──
-total_runs = summary["total_runs"].sum()
-total_ok = summary["ok"].sum()
-total_fails = summary["fails"].sum() + summary["errors"].sum() + summary["zombies"].sum()
-total_retried = summary["retried"].sum()
-total_retry_saved = summary["retry_saved"].sum()
-overall_rate = (total_ok / total_runs * 100) if total_runs else 0
+    if not tables_info.empty:
+        total_tables = len(tables_info)
+        total_rows = tables_info["rows"].sum()
+        db_size_str = db_size.iloc[0]["size"] if not db_size.empty else "?"
 
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Всього запусків", f"{total_runs:,}")
-c2.metric("Success rate", f"{overall_rate:.1f}%",
-          delta="OK" if overall_rate >= 95 else "Low",
-          delta_color="normal" if overall_rate >= 95 else "inverse")
-c3.metric("Падінь", f"{total_fails:,}",
-          delta_color="inverse" if total_fails > 0 else "off")
-c4.metric("Ретраїв", f"{total_retried:,}")
-c5.metric("Врятовано ретраєм", f"{total_retry_saved:,}",
-          delta=f"{total_retry_saved}/{total_retried}" if total_retried else "—")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("📦 Розмір БД", db_size_str)
+        c2.metric("📊 Таблиць", f"{total_tables}")
+        c3.metric("📝 Рядків (всього)", f"{total_rows:,.0f}")
 
-st.divider()
+    st.divider()
 
-# ── Row 1: Uptime + Heatmap ──
-col1, col2 = st.columns(2)
-with col1:
-    fig = chart_uptime_bars(summary)
-    if fig:
+    # ── Freshness: один UNION ALL запит ──
+    ts_columns = safe_query("""
+        SELECT DISTINCT ON (table_schema, table_name)
+            table_schema || '.' || table_name as full_name,
+            column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND data_type IN ('timestamp with time zone', 'timestamp without time zone')
+        ORDER BY table_schema, table_name,
+            CASE
+                WHEN column_name = 'updated_at' THEN 1
+                WHEN column_name = 'created_at' THEN 2
+                WHEN column_name LIKE '%_at' THEN 3
+                WHEN column_name LIKE '%_date' THEN 4
+                ELSE 5
+            END,
+            ordinal_position
+    """)
+
+    last_writes = {}
+    if not ts_columns.empty:
+        parts = []
+        for _, row in ts_columns.iterrows():
+            tname = row["full_name"]
+            col = row["column_name"]
+            parts.append(
+                f"SELECT '{tname}' as tbl, "
+                f"MAX({col}::timestamptz) as last_write "
+                f"FROM {tname}"
+            )
+        if parts:
+            freshness = safe_query(" UNION ALL ".join(parts))
+            if not freshness.empty:
+                for _, row in freshness.iterrows():
+                    if pd.notna(row["last_write"]):
+                        last_writes[row["tbl"]] = row["last_write"]
+
+    # ── Розмір по таблицям (chart) ──
+    if not tables_info.empty:
+        st.markdown("### 💾 Розмір таблиць")
+        df_chart = tables_info[tables_info["size_bytes"] > 0].copy()
+        df_chart = df_chart.sort_values("size_bytes")
+        df_chart["short_name"] = df_chart["table_name"].str.replace("public.", "", regex=False)
+
+        fig = go.Figure(go.Bar(
+            x=df_chart["size_bytes"] / (1024 * 1024),
+            y=df_chart["short_name"],
+            orientation="h",
+            marker_color="#3b82f6",
+            text=df_chart["total_size"],
+            textposition="auto",
+        ))
+        fig.update_layout(
+            xaxis_title="MB",
+            height=max(400, len(df_chart) * 28),
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
         st.plotly_chart(fig, use_container_width=True)
-with col2:
-    heatmap = load_hourly_heatmap(days)
-    fig = chart_failure_heatmap(heatmap)
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.success("🎉 Жодних падінь за період!")
 
-st.divider()
+    st.divider()
 
-# ── Row 2: Duration trends ──
-trend = load_duration_trend(days)
-fig = chart_duration_trends(trend)
-if fig:
-    st.plotly_chart(fig, use_container_width=True)
+    # ── Таблиці — детальна інформація ──
+    st.markdown("### 📋 Всі таблиці")
 
-# ── Row 3: Today timeline + Retry effectiveness ──
-col3, col4 = st.columns(2)
-with col3:
-    timeline = load_today_timeline()
-    fig = chart_today_timeline(timeline)
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Сьогодні ще немає запусків")
-with col4:
-    fig = chart_retry_effectiveness(summary)
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Ретраїв ще не було")
+    if not tables_info.empty:
+        now = datetime.now(KYIV_TZ)
+        rows_display = []
 
-st.divider()
+        for _, row in tables_info.iterrows():
+            tname = row["table_name"]
+            rows_count = int(row["rows"]) if pd.notna(row["rows"]) else 0
+            last = last_writes.get(tname)
 
-# ── Summary table ──
-st.markdown("### 📊 Зведена таблиця")
-display = summary[[
-    "loader_name", "total_runs", "ok", "fails", "errors",
-    "zombies", "skips", "retried", "retry_saved",
-    "avg_duration", "max_duration"
-]].copy()
-display.columns = [
-    "Лоадер", "Запусків", "✅ OK", "❌ FAIL", "💥 ERROR",
-    "🧟 ZOMBIE", "⏭ SKIP", "🔄 Retried", "✅ Saved",
-    "⏱ Avg (с)", "⏱ Max (с)"
-]
-st.dataframe(display, use_container_width=True, hide_index=True)
+            last_str = "—"
+            ago_str = ""
+            freshness_status = "⚪"
 
-# ── Recent failures ──
-st.markdown("### 🔴 Останні падіння")
-failures = load_recent_failures(20)
-if failures.empty:
-    st.success("Жодних падінь!")
+            if last is not None:
+                try:
+                    last_dt = pd.to_datetime(last, utc=True).astimezone(KYIV_TZ)
+                    last_str = last_dt.strftime("%d.%m.%Y %H:%M")
+                    diff = now - last_dt
+                    total_hours = diff.total_seconds() / 3600
+
+                    if diff.days > 0:
+                        ago_str = f"{diff.days}д тому"
+                    elif total_hours >= 1:
+                        ago_str = f"{int(total_hours)}г тому"
+                    else:
+                        ago_str = f"{int(diff.total_seconds() // 60)}хв тому"
+
+                    if total_hours < 6:
+                        freshness_status = "🟢"
+                    elif total_hours < 24:
+                        freshness_status = "🟡"
+                    else:
+                        freshness_status = "🔴"
+                except:
+                    pass
+
+            rows_display.append({
+                "": freshness_status,
+                "Таблиця": tname.replace("public.", ""),
+                "Рядків": f"{rows_count:,}",
+                "Розмір": row["total_size"],
+                "Дані": row["data_size"],
+                "Індекси": row["index_size"],
+                "Останній запис": last_str,
+                "Давність": ago_str,
+            })
+
+        df_display = pd.DataFrame(rows_display)
+        st.dataframe(df_display, use_container_width=True, hide_index=True, height=min(800, len(df_display) * 38 + 38))
+
+# ============================================
+# PAGE: ETL Health
+# ============================================
 else:
-    for _, row in failures.iterrows():
-        status_icon = {"FAIL": "❌", "ERROR": "💥", "ZOMBIE": "🧟"}.get(row["status"], "?")
-        retry_tag = f" (retry #{row['attempt']-1})" if row["attempt"] > 1 else ""
-        time_str = row["started_at"].strftime("%d.%m %H:%M") if pd.notna(row["started_at"]) else "?"
-        with st.expander(
-            f"{status_icon} {row['loader_name']} — {time_str}{retry_tag}",
-            expanded=False
-        ):
-            st.text(f"Status:   {row['status']}")
-            st.text(f"Duration: {row['duration']}s")
-            st.text(f"Group:    {row['group_label']}")
-            if row["error_msg"]:
-                st.code(row["error_msg"], language="text")
+    st.markdown("## 🏥 ETL Health Monitor")
+
+    col_period, _ = st.columns([3, 1])
+    with col_period:
+        days = st.selectbox("Період", [1, 3, 7, 14, 30],
+                            index=2, format_func=lambda d: f"Останні {d} днів")
+
+    summary = load_summary(days)
+    if summary.empty:
+        st.warning("Немає даних в loader_runs. Scheduler v2.4 ще не записував історію.")
+        st.info("Дані з'являться після першого запуску лоадера з run_forever.py v2.4")
+        st.stop()
+
+    # ── KPI cards ──
+    total_runs = summary["total_runs"].sum()
+    total_ok = summary["ok"].sum()
+    total_fails = summary["fails"].sum() + summary["errors"].sum() + summary["zombies"].sum()
+    total_retried = summary["retried"].sum()
+    total_retry_saved = summary["retry_saved"].sum()
+    overall_rate = (total_ok / total_runs * 100) if total_runs else 0
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Всього запусків", f"{total_runs:,}")
+    c2.metric("Success rate", f"{overall_rate:.1f}%",
+              delta="OK" if overall_rate >= 95 else "Low",
+              delta_color="normal" if overall_rate >= 95 else "inverse")
+    c3.metric("Падінь", f"{total_fails:,}",
+              delta_color="inverse" if total_fails > 0 else "off")
+    c4.metric("Ретраїв", f"{total_retried:,}")
+    c5.metric("Врятовано ретраєм", f"{total_retry_saved:,}",
+              delta=f"{total_retry_saved}/{total_retried}" if total_retried else "—")
+
+    st.divider()
+
+    # ── Row 1: Uptime + Heatmap ──
+    col1, col2 = st.columns(2)
+    with col1:
+        fig = chart_uptime_bars(summary)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        heatmap = load_hourly_heatmap(days)
+        fig = chart_failure_heatmap(heatmap)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.success("🎉 Жодних падінь за період!")
+
+    st.divider()
+
+    # ── Row 2: Duration trends ──
+    trend = load_duration_trend(days)
+    fig = chart_duration_trends(trend)
+    if fig:
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Row 3: Today timeline + Retry effectiveness ──
+    col3, col4 = st.columns(2)
+    with col3:
+        timeline = load_today_timeline()
+        fig = chart_today_timeline(timeline)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Сьогодні ще немає запусків")
+    with col4:
+        fig = chart_retry_effectiveness(summary)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Ретраїв ще не було")
+
+    st.divider()
+
+    # ── Summary table ──
+    st.markdown("### 📊 Зведена таблиця")
+    display = summary[[
+        "loader_name", "total_runs", "ok", "fails", "errors",
+        "zombies", "skips", "retried", "retry_saved",
+        "avg_duration", "max_duration"
+    ]].copy()
+    display.columns = [
+        "Лоадер", "Запусків", "✅ OK", "❌ FAIL", "💥 ERROR",
+        "🧟 ZOMBIE", "⏭ SKIP", "🔄 Retried", "✅ Saved",
+        "⏱ Avg (с)", "⏱ Max (с)"
+    ]
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+    # ── Recent failures ──
+    st.markdown("### 🔴 Останні падіння")
+    failures = load_recent_failures(20)
+    if failures.empty:
+        st.success("Жодних падінь!")
+    else:
+        for _, row in failures.iterrows():
+            status_icon = {"FAIL": "❌", "ERROR": "💥", "ZOMBIE": "🧟"}.get(row["status"], "?")
+            retry_tag = f" (retry #{row['attempt']-1})" if row["attempt"] > 1 else ""
+            time_str = row["started_at"].strftime("%d.%m %H:%M") if pd.notna(row["started_at"]) else "?"
+            with st.expander(
+                f"{status_icon} {row['loader_name']} — {time_str}{retry_tag}",
+                expanded=False
+            ):
+                st.text(f"Status:   {row['status']}")
+                st.text(f"Duration: {row['duration']}s")
+                st.text(f"Group:    {row['group_label']}")
+                if row["error_msg"]:
+                    st.code(row["error_msg"], language="text")
