@@ -389,11 +389,48 @@ if page == "🗄️ База даних":
     # ── Таблиці — детальна інформація ──
     st.markdown("### 📋 Всі таблиці")
 
+    # Delete confirmation state
+    if "confirm_delete" not in st.session_state:
+        st.session_state.confirm_delete = None
+
     if not tables_info.empty:
         now = datetime.now(KYIV_TZ)
-        rows_display = []
 
-        for _, row in tables_info.iterrows():
+        # Якщо є підтвердження видалення
+        if st.session_state.confirm_delete:
+            tbl = st.session_state.confirm_delete
+            st.warning(f"⚠️ Видалити таблицю **{tbl}**? Це незворотня дія!")
+            col_yes, col_no, _ = st.columns([1, 1, 6])
+            with col_yes:
+                if st.button("🗑️ Так, видалити", type="primary"):
+                    conn = get_conn()
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+                        conn.commit()
+                        cur.close()
+                        st.success(f"✅ Таблиця {tbl} видалена")
+                        st.session_state.confirm_delete = None
+                        st.cache_resource.clear()
+                        import time as _t; _t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"❌ Помилка: {e}")
+                        st.session_state.confirm_delete = None
+            with col_no:
+                if st.button("Скасувати"):
+                    st.session_state.confirm_delete = None
+                    st.rerun()
+            st.divider()
+
+        # Header
+        cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.5])
+        headers = ["", "Таблиця", "Рядків", "Розмір", "Дані", "Індекси", "Останній запис", "Давність", ""]
+        for col, h in zip(cols, headers):
+            col.markdown(f"**{h}**")
+
+        for idx, row in tables_info.iterrows():
             tname = row["table_name"]
             rows_count = int(row["rows"]) if pd.notna(row["rows"]) else 0
             last = last_writes.get(tname)
@@ -425,19 +462,19 @@ if page == "🗄️ База даних":
                 except:
                     pass
 
-            rows_display.append({
-                "": freshness_status,
-                "Таблиця": tname.replace("public.", ""),
-                "Рядків": f"{rows_count:,}",
-                "Розмір": row["total_size"],
-                "Дані": row["data_size"],
-                "Індекси": row["index_size"],
-                "Останній запис": last_str,
-                "Давність": ago_str,
-            })
-
-        df_display = pd.DataFrame(rows_display)
-        st.dataframe(df_display, use_container_width=True, hide_index=True, height=min(800, len(df_display) * 38 + 38))
+            short = tname.replace("public.", "")
+            cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.5])
+            cols[0].markdown(freshness_status)
+            cols[1].markdown(f"`{short}`")
+            cols[2].markdown(f"{rows_count:,}")
+            cols[3].markdown(row["total_size"])
+            cols[4].markdown(row["data_size"])
+            cols[5].markdown(row["index_size"])
+            cols[6].markdown(last_str)
+            cols[7].markdown(ago_str)
+            if cols[8].button("🗑️", key=f"del_{tname}"):
+                st.session_state.confirm_delete = tname
+                st.rerun()
 
 # ============================================
 # PAGE: ETL Health
