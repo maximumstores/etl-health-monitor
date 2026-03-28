@@ -347,11 +347,33 @@ if page == "🗄️ База даних":
         df_chart = df_chart.sort_values("size_bytes")
         df_chart["short_name"] = df_chart["table_name"].str.replace("public.", "", regex=False)
 
+        now = datetime.now(KYIV_TZ)
+
+        # Підпис: ім'я + дата останнього запису
+        labels = []
+        bar_colors = []
+        for _, r in df_chart.iterrows():
+            name = r["short_name"]
+            last = last_writes.get(r["table_name"])
+            if last is not None:
+                try:
+                    last_dt = pd.to_datetime(last, utc=True).astimezone(KYIV_TZ)
+                    total_hours = (now - last_dt).total_seconds() / 3600
+                    date_str = last_dt.strftime("%d.%m %H:%M")
+                    labels.append(f"{name}  🕒 {date_str}")
+                    bar_colors.append("#22c55e" if total_hours < 6 else "#f59e0b" if total_hours < 24 else "#ef4444")
+                except:
+                    labels.append(name)
+                    bar_colors.append("#64748b")
+            else:
+                labels.append(name)
+                bar_colors.append("#64748b")
+
         fig = go.Figure(go.Bar(
             x=df_chart["size_bytes"] / (1024 * 1024),
-            y=df_chart["short_name"],
+            y=labels,
             orientation="h",
-            marker_color="#3b82f6",
+            marker_color=bar_colors,
             text=df_chart["total_size"],
             textposition="auto",
         ))
