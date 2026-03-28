@@ -42,6 +42,20 @@ def run_query(sql, params=None):
 # ============================================
 # Sidebar — База даних
 # ============================================
+def safe_query(sql, params=None):
+    """Запит з autocommit — помилка в одному не ламає інші."""
+    conn = get_conn()
+    try:
+        df = pd.read_sql(sql, conn, params=params)
+        conn.commit()
+        return df
+    except Exception:
+        try:
+            conn.rollback()
+        except:
+            pass
+        return pd.DataFrame()
+
 def render_sidebar_db():
     st.sidebar.markdown("## 🗄️ База даних")
 
@@ -50,26 +64,19 @@ def render_sidebar_db():
         st.rerun()
 
     # ── Загальний розмір БД ──
-    db_size = run_query("""
-        SELECT
-            pg_database.datname as db_name,
-            pg_size_pretty(pg_database_size(pg_database.datname)) as size,
-            pg_database_size(pg_database.datname) as size_bytes
-        FROM pg_database
-        WHERE pg_database.datname = current_database()
+    db_size = safe_query("""
+        SELECT pg_size_pretty(pg_database_size(current_database())) as size
     """)
     if not db_size.empty:
         st.sidebar.metric("📦 Розмір БД", db_size.iloc[0]["size"])
 
-    # ── Кількість таблиць ──
-    tables_info = run_query("""
+    # ── Всі таблиці + розміри ──
+    tables_info = safe_query("""
         SELECT
             schemaname || '.' || relname as table_name,
             n_live_tup as rows,
             pg_size_pretty(pg_total_relation_size(relid)) as total_size,
-            pg_total_relation_size(relid) as size_bytes,
-            pg_size_pretty(pg_relation_size(relid)) as data_size,
-            pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) as index_size
+            pg_total_relation_size(relid) as size_bytes
         FROM pg_stat_user_tables
         ORDER BY pg_total_relation_size(relid) DESC
     """)
@@ -82,82 +89,52 @@ def render_sidebar_db():
 
     st.sidebar.divider()
 
-    # ── Останній запис по кожній таблиці ──
-    freshness = run_query("""
-        WITH table_list AS (
-            SELECT
-                schemaname || '.' || relname as table_name,
-                relname,
-                schemaname
-            FROM pg_stat_user_tables
-        )
-        SELECT table_name FROM table_list ORDER BY table_name
+    # ── Freshness: один запит — всі таблиці з timestamp колонками ──
+    ts_columns = safe_query("""
+        SELECT DISTINCT ON (table_schema, table_name)
+            table_schema || '.' || table_name as full_name,
+            column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND data_type IN ('timestamp with time zone', 'timestamp without time zone')
+        ORDER BY table_schema, table_name,
+            CASE
+                WHEN column_name = 'updated_at' THEN 1
+                WHEN column_name = 'created_at' THEN 2
+                WHEN column_name LIKE '%_at' THEN 3
+                WHEN column_name LIKE '%_date' THEN 4
+                ELSE 5
+            END,
+            ordinal_position
     """)
 
-    # Для ключових таблиць визначаємо колонку дати
-    date_columns = {
-        "public.loader_runs": "started_at",
-        "public.orders": "purchase_date",
-        "public.fba_inventory": "updated_at",
-        "public.finance_events": "posted_date",
-        "public.finance_settlements": "posted_date",
-        "public.finance_event_groups": "updated_at",
-        "public.fba_returns": "return_date",
-        "public.listings_all": "updated_at",
-        "public.catalog_items": "updated_at",
-        "public.sales_traffic": "date",
-        "public.pricing_current": "updated_at",
-        "public.pricing_offers": "updated_at",
-        "public.pricing_buybox": "updated_at",
-        "public.fba_shipments": "updated_at",
-        "public.fba_shipment_items": "updated_at",
-        "public.fba_removals": "updated_at",
-        "public.ads_campaigns": "updated_at",
-        "public.ads_keywords": "updated_at",
-        "public.pending_reports": "created_at",
-    }
-
-    # Пробуємо знайти останній запис для кожної таблиці
     last_writes = {}
-    for _, row in freshness.iterrows():
-        tname = row["table_name"]
-        # Спочатку спробуємо відому колонку
-        date_col = date_columns.get(tname)
-        if date_col:
-            try:
-                res = run_query(f"""
-                    SELECT MAX({date_col}) AT TIME ZONE 'Europe/Kyiv' as last_write
-                    FROM {tname}
-                """)
-                if not res.empty and pd.notna(res.iloc[0]["last_write"]):
-                    last_writes[tname] = res.iloc[0]["last_write"]
-                    continue
-            except:
-                pass
-        # Fallback: шукаємо будь-яку timestamp колонку
-        try:
-            cols = run_query("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_schema || '.' || table_name = %s
-                  AND data_type IN ('timestamp with time zone', 'timestamp without time zone')
-                ORDER BY ordinal_position
-                LIMIT 1
-            """, (tname,))
-            if not cols.empty:
-                col = cols.iloc[0]["column_name"]
-                res = run_query(f"""
-                    SELECT MAX({col}) AT TIME ZONE 'Europe/Kyiv' as last_write
-                    FROM {tname}
-                """)
-                if not res.empty and pd.notna(res.iloc[0]["last_write"]):
-                    last_writes[tname] = res.iloc[0]["last_write"]
-        except:
-            pass
+    if not ts_columns.empty:
+        # Будуємо один UNION ALL запит
+        parts = []
+        for _, row in ts_columns.iterrows():
+            tname = row["full_name"]
+            col = row["column_name"]
+            parts.append(
+                f"SELECT '{tname}' as tbl, "
+                f"MAX({col}::timestamptz) as last_write "
+                f"FROM {tname}"
+            )
 
-    # ── Таблиця в сайдбарі ──
+        if parts:
+            union_sql = " UNION ALL ".join(parts)
+            freshness = safe_query(union_sql)
+            if not freshness.empty:
+                for _, row in freshness.iterrows():
+                    if pd.notna(row["last_write"]):
+                        last_writes[row["tbl"]] = row["last_write"]
+
+    # ── Рендер таблиць в сайдбарі ──
     st.sidebar.markdown("### 📋 Таблиці")
 
     if not tables_info.empty:
+        now = datetime.now(KYIV_TZ)
+
         for _, row in tables_info.iterrows():
             tname = row["table_name"]
             rows = int(row["rows"]) if pd.notna(row["rows"]) else 0
@@ -165,29 +142,29 @@ def render_sidebar_db():
             last = last_writes.get(tname)
 
             if last is not None:
-                if isinstance(last, str):
-                    last_str = last[:16]
-                else:
-                    last_str = last.strftime("%d.%m %H:%M")
-                ago = ""
                 try:
-                    now = datetime.now(KYIV_TZ)
-                    if isinstance(last, str):
-                        last_dt = pd.to_datetime(last)
-                    else:
-                        last_dt = last
-                    if last_dt.tzinfo is None:
-                        last_dt = last_dt.replace(tzinfo=KYIV_TZ)
+                    last_dt = pd.to_datetime(last, utc=True).astimezone(KYIV_TZ)
+                    last_str = last_dt.strftime("%d.%m %H:%M")
                     diff = now - last_dt
+                    total_hours = diff.total_seconds() / 3600
+
                     if diff.days > 0:
                         ago = f" ({diff.days}д тому)"
-                    elif diff.seconds > 3600:
-                        ago = f" ({diff.seconds // 3600}г тому)"
+                    elif total_hours >= 1:
+                        ago = f" ({int(total_hours)}г тому)"
                     else:
-                        ago = f" ({diff.seconds // 60}хв тому)"
+                        ago = f" ({int(diff.total_seconds() // 60)}хв тому)"
+
+                    if total_hours < 6:
+                        fresh_icon = "🟢"
+                    elif total_hours < 24:
+                        fresh_icon = "🟡"
+                    else:
+                        fresh_icon = "🔴"
                 except:
+                    last_str = "—"
                     ago = ""
-                fresh_icon = "🟢" if ago and ("хв" in ago or ("г" in ago and int(ago.split("(")[1].split("г")[0]) < 6)) else "🟡" if "д" not in ago else "🔴"
+                    fresh_icon = "⚪"
             else:
                 last_str = "—"
                 ago = ""
@@ -200,23 +177,6 @@ def render_sidebar_db():
                 f"🕒 {last_str}{ago}"
             )
             st.sidebar.markdown("---")
-
-    # ── Розмір по схемам ──
-    schema_sizes = run_query("""
-        SELECT
-            schemaname as schema,
-            COUNT(*) as tables,
-            pg_size_pretty(SUM(pg_total_relation_size(relid))) as total_size
-        FROM pg_stat_user_tables
-        GROUP BY schemaname
-        ORDER BY SUM(pg_total_relation_size(relid)) DESC
-    """)
-    if not schema_sizes.empty and len(schema_sizes) > 1:
-        st.sidebar.markdown("### 📁 Схеми")
-        for _, row in schema_sizes.iterrows():
-            st.sidebar.markdown(
-                f"**{row['schema']}** — {row['tables']} таблиць · {row['total_size']}"
-            )
 
 # ============================================
 # Queries — ETL Health
