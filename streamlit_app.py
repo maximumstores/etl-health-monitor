@@ -266,9 +266,215 @@ if st.sidebar.button("🔄 Оновити"):
     st.rerun()
 
 # ============================================
+# Sidebar — навігація
+# ============================================
+st.sidebar.markdown("## 📡 ETL Monitor")
+page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних", "📋 Архітектура"], label_visibility="collapsed")
+
+if st.sidebar.button("🔄 Оновити"):
+    st.cache_resource.clear()
+    st.rerun()
+
+# ============================================
+# ETL Architecture data
+# ============================================
+SCHEDULE = [
+    ( 5,  0,  [13],        "FBA Operations"),
+    ( 6,  0,  [5, 99],     "Listings + Restock"),
+    ( 7,  0,  [1, 0],      "Inventory + DQ"),
+    ( 8,  0,  [2, 11],     "Finance + Pricing"),
+    ( 9,  0,  [3],         "Orders (fast)"),
+    ( 9, 30,  [98],        "Returns Agent"),
+    (10,  0,  [4, 6],      "Returns + Traffic"),
+    (12,  0,  [11, 99],    "Pricing + Restock"),
+    (13,  0,  [1],         "Inventory"),
+    (16,  0,  [11],        "Pricing"),
+    (18,  0,  [99],        "Restock Agent"),
+    (19,  0,  [1],         "Inventory"),
+    (20,  0,  [2, 11],     "Finance + Pricing"),
+    (21,  0,  [3],         "Orders (fast)"),
+    (22,  0,  [0],         "DQ Evening Check"),
+]
+
+LOADER_INFO = {
+    0:  {"name": "DQ Check",        "emoji": "🔍", "file": "data_quality.py",         "tables": [],                                              "api": "—",                "type": "check"},
+    1:  {"name": "Inventory",       "emoji": "📦", "file": "01_inventory_loader.py",   "tables": ["fba_inventory"],                                "api": "SP-API Reports",   "type": "loader"},
+    2:  {"name": "Finance",         "emoji": "💰", "file": "02_finance_loader.py",     "tables": ["settlements", "finance_events", "finance_event_groups"], "api": "SP-API Finance", "type": "loader"},
+    3:  {"name": "Orders",          "emoji": "🛒", "file": "03_orders_loader.py",      "tables": ["orders"],                                      "api": "SP-API Reports",   "type": "loader"},
+    4:  {"name": "Returns",         "emoji": "🔙", "file": "04_returns_loader.py",     "tables": ["fba_returns"],                                 "api": "SP-API Reports",   "type": "loader"},
+    5:  {"name": "Listings",        "emoji": "📝", "file": "05_listings_loader.py",    "tables": ["listings_all", "catalog_items"],                "api": "SP-API Catalog",   "type": "loader"},
+    6:  {"name": "Traffic",         "emoji": "📈", "file": "06_sales traffic_loader.py","tables": ["sales_traffic"],                               "api": "SP-API Reports",   "type": "loader"},
+    7:  {"name": "Ads",             "emoji": "🎯", "file": "07_ads_loader.py",         "tables": ["ads_campaigns", "ads_keywords"],                "api": "Ads API",          "type": "loader"},
+    8:  {"name": "Brand Analytics", "emoji": "🏷️", "file": "08_brand_analytics_loader.py", "tables": [],                                          "api": "SP-API BA",        "type": "loader"},
+    9:  {"name": "Tax/VAT",         "emoji": "📋", "file": "09_tax_loader.py",         "tables": [],                                              "api": "SP-API Reports",   "type": "loader"},
+    11: {"name": "Pricing",         "emoji": "💲", "file": "11_pricing_loader.py",     "tables": ["pricing_current", "pricing_offers", "pricing_buybox"], "api": "SP-API Pricing", "type": "loader"},
+    13: {"name": "FBA Operations",  "emoji": "📦", "file": "13_fba_operations_loader.py","tables": ["fba_shipments", "fba_shipment_items", "fba_removals"], "api": "SP-API FBA", "type": "loader"},
+    98: {"name": "Returns Agent",   "emoji": "🔴", "file": "returns_agent.py",         "tables": [],                                              "api": "Gemini AI",        "type": "agent"},
+    99: {"name": "Restock Agent",   "emoji": "🤖", "file": "restock_agent.py",         "tables": [],                                              "api": "Gemini AI",        "type": "agent"},
+}
+
+# ============================================
+# PAGE: Архітектура
+# ============================================
+if page == "📋 Архітектура":
+    st.markdown("## 📋 Архітектура ETL Pipeline")
+
+    # ── System overview ──
+    st.markdown("### 🏗️ Система")
+    co1, co2, co3, co4 = st.columns(4)
+    co1.metric("Лоадерів", len([l for l in LOADER_INFO.values() if l["type"] == "loader"]))
+    co2.metric("Агентів", len([l for l in LOADER_INFO.values() if l["type"] == "agent"]))
+    co3.metric("Слотів/день", len(SCHEDULE))
+    parallel_count = len([s for s in SCHEDULE if len(s[2]) > 1])
+    co4.metric("Паралельних груп", parallel_count)
+
+    st.divider()
+
+    # ── Розклад ──
+    st.markdown("### 📅 Розклад (Kyiv timezone)")
+
+    schedule_rows = []
+    for h, m, nums, label in sorted(SCHEDULE, key=lambda x: (x[0], x[1])):
+        loaders = []
+        for n in nums:
+            info = LOADER_INFO.get(n, {})
+            loaders.append(f"{info.get('emoji','')} {info.get('name', f'#{n}')}")
+        parallel = "⚡" if len(nums) > 1 else ""
+        schedule_rows.append({
+            "Час": f"{h:02d}:{m:02d}",
+            "": parallel,
+            "Група": label,
+            "Лоадери": " + ".join(loaders),
+            "Тип": "Паралельно" if len(nums) > 1 else "Послідовно",
+        })
+
+    df_schedule = pd.DataFrame(schedule_rows)
+    st.dataframe(df_schedule, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ── Timeline візуалізація ──
+    st.markdown("### ⏰ Timeline дня")
+
+    timeline_bars = []
+    for h, m, nums, label in sorted(SCHEDULE, key=lambda x: (x[0], x[1])):
+        start_min = h * 60 + m
+        # Приблизна тривалість
+        est_duration = max(5, len(nums) * 5)
+        for n in nums:
+            info = LOADER_INFO.get(n, {})
+            timeline_bars.append({
+                "Loader": f"{info.get('emoji','')} {info.get('name', f'#{n}')}",
+                "Start": pd.Timestamp(f"2026-01-01 {h:02d}:{m:02d}:00"),
+                "End": pd.Timestamp(f"2026-01-01 {h:02d}:{m:02d}:00") + pd.Timedelta(minutes=est_duration),
+                "Type": info.get("type", "?"),
+            })
+
+    if timeline_bars:
+        df_tl = pd.DataFrame(timeline_bars)
+        type_colors = {"loader": "#3b82f6", "agent": "#f59e0b", "check": "#22c55e"}
+        fig = px.timeline(
+            df_tl, x_start="Start", x_end="End",
+            y="Loader", color="Type",
+            color_discrete_map=type_colors,
+        )
+        fig.update_layout(
+            height=max(350, len(df_tl) * 25),
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis_title="Час (Kyiv)",
+            showlegend=True,
+        )
+        fig.update_xaxes(tickformat="%H:%M")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # ── Лоадери — детальна інформація ──
+    st.markdown("### 🔧 Лоадери")
+
+    for num, info in sorted(LOADER_INFO.items()):
+        if info["type"] == "check":
+            continue
+
+        # Скільки разів на день запускається
+        runs_per_day = sum(1 for _, _, nums, _ in SCHEDULE if num in nums)
+        times = [f"{h:02d}:{m:02d}" for h, m, nums, _ in SCHEDULE if num in nums]
+
+        # Статус з БД якщо є
+        last_run = safe_query("""
+            SELECT status, duration_sec::int as dur,
+                   started_at AT TIME ZONE 'Europe/Kyiv' as started_at
+            FROM public.loader_runs
+            WHERE loader_num = %s
+            ORDER BY started_at DESC LIMIT 1
+        """, (num,))
+
+        type_badge = "🤖 Agent" if info["type"] == "agent" else "📥 Loader"
+
+        with st.expander(f"{info['emoji']} **{info['name']}** — {type_badge} · {runs_per_day}x/день", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.markdown(f"**Файл:** `{info['file']}`")
+            c2.markdown(f"**API:** {info['api']}")
+            c3.markdown(f"**Запусків/день:** {runs_per_day}")
+
+            if info["tables"]:
+                st.markdown(f"**Таблиці:** {', '.join([f'`{t}`' for t in info['tables']])}")
+
+            st.markdown(f"**Розклад:** {' · '.join(times)}")
+
+            if not last_run.empty:
+                r = last_run.iloc[0]
+                status_icon = {"OK":"✅","FAIL":"❌","ERROR":"💥","ZOMBIE":"🧟","SKIP":"⏭"}.get(r["status"],"?")
+                started = r["started_at"].strftime("%d.%m %H:%M") if pd.notna(r["started_at"]) else "?"
+                st.markdown(f"**Останній запуск:** {status_icon} {r['status']} · {r['dur']}с · {started}")
+            else:
+                st.markdown("**Останній запуск:** немає даних (scheduler v2.4 ще не писав)")
+
+    st.divider()
+
+    # ── Data Flow diagram ──
+    st.markdown("### 🔀 Data Flow")
+    st.markdown("""
+    ```
+    Amazon SP-API / Ads API
+            │
+            ▼
+    ┌──────────────────────────┐
+    │   run_forever.py v2.4    │
+    │   ├─ Circuit Breaker     │
+    │   ├─ Auto-Retry (2x)     │
+    │   ├─ Exponential Backoff │
+    │   └─ Parallel Groups     │
+    └──────────┬───────────────┘
+               │
+         ┌─────┼─────┐
+         ▼     ▼     ▼
+    ┌────────┐┌──────┐┌────────┐
+    │Loaders ││Agents││DQ Check│
+    │(11 шт) ││(2 шт)││        │
+    └───┬────┘└──┬───┘└───┬────┘
+        │        │        │
+        ▼        ▼        ▼
+    ┌──────────────────────────┐
+    │   PostgreSQL (Heroku)     │
+    │   ├─ 25+ таблиць          │
+    │   ├─ loader_runs (історія)│
+    │   └─ pending_reports      │
+    └──────────┬───────────────┘
+               │
+         ┌─────┼─────┐
+         ▼     ▼     ▼
+    ┌────────┐┌──────────┐┌──────────────┐
+    │Dashboard││ETL Health││Telegram Bot  │
+    │(BI)     ││Monitor   ││Notifications │
+    └────────┘└──────────┘└──────────────┘
+    ```
+    """)
+
+# ============================================
 # PAGE: База даних
 # ============================================
-if page == "🗄️ База даних":
+elif page == "🗄️ База даних":
     st.markdown("## 🗄️ База даних")
 
     # ── Загальні метрики ──
