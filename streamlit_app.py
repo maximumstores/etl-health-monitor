@@ -422,9 +422,11 @@ if page == "🗄️ База даних":
     # ── Таблиці — детальна інформація ──
     st.markdown("### 📋 Всі таблиці")
 
-    # Delete confirmation state
+    # Delete/Truncate confirmation state
     if "confirm_delete" not in st.session_state:
         st.session_state.confirm_delete = None
+    if "confirm_truncate" not in st.session_state:
+        st.session_state.confirm_truncate = None
 
     if not tables_info.empty:
         now = datetime.now(KYIV_TZ)
@@ -432,7 +434,7 @@ if page == "🗄️ База даних":
         # Якщо є підтвердження видалення
         if st.session_state.confirm_delete:
             tbl = st.session_state.confirm_delete
-            st.warning(f"⚠️ Видалити таблицю **{tbl}**? Це незворотня дія!")
+            st.warning(f"⚠️ Видалити таблицю **{tbl}**? Структура + дані зникнуть назавжди!")
             col_yes, col_no, _ = st.columns([1, 1, 6])
             with col_yes:
                 if st.button("🗑️ Так, видалити", type="primary"):
@@ -452,13 +454,41 @@ if page == "🗄️ База даних":
                         st.error(f"❌ Помилка: {e}")
                         st.session_state.confirm_delete = None
             with col_no:
-                if st.button("Скасувати"):
+                if st.button("Скасувати", key="cancel_delete"):
                     st.session_state.confirm_delete = None
                     st.rerun()
             st.divider()
 
+        # Якщо є підтвердження очистки
+        if st.session_state.confirm_truncate:
+            tbl = st.session_state.confirm_truncate
+            st.warning(f"🧹 Очистити таблицю **{tbl}**? Всі дані будуть видалені, структура залишиться.")
+            col_yes, col_no, _ = st.columns([1, 1, 6])
+            with col_yes:
+                if st.button("🧹 Так, очистити", type="primary"):
+                    conn = get_conn()
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(f"TRUNCATE TABLE {tbl} CASCADE")
+                        conn.commit()
+                        cur.close()
+                        st.success(f"✅ Таблиця {tbl} очищена (0 рядків)")
+                        st.session_state.confirm_truncate = None
+                        st.cache_resource.clear()
+                        import time as _t; _t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"❌ Помилка: {e}")
+                        st.session_state.confirm_truncate = None
+            with col_no:
+                if st.button("Скасувати", key="cancel_truncate"):
+                    st.session_state.confirm_truncate = None
+                    st.rerun()
+            st.divider()
+
         # Header
-        cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.5])
+        cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.8])
         headers = ["", "Таблиця", "Рядків", "Розмір", "Дані", "Індекси", "Останній запис", "Давність", ""]
         for col, h in zip(cols, headers):
             col.markdown(f"**{h}**")
@@ -496,7 +526,7 @@ if page == "🗄️ База даних":
                     pass
 
             short = tname.replace("public.", "")
-            cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.5])
+            cols = st.columns([0.3, 2.5, 1, 1, 1, 1, 2, 1.2, 0.8])
             cols[0].markdown(freshness_status)
             cols[1].markdown(f"`{short}`")
             cols[2].markdown(f"{rows_count:,}")
@@ -505,7 +535,13 @@ if page == "🗄️ База даних":
             cols[5].markdown(row["index_size"])
             cols[6].markdown(last_str)
             cols[7].markdown(ago_str)
-            if cols[8].button("🗑️", key=f"del_{tname}"):
+            # Кнопки: очистити + видалити
+            btn_col = cols[8]
+            bc1, bc2 = btn_col.columns(2)
+            if bc1.button("🧹", key=f"trunc_{tname}", help="Очистити"):
+                st.session_state.confirm_truncate = tname
+                st.rerun()
+            if bc2.button("🗑️", key=f"del_{tname}", help="Видалити"):
                 st.session_state.confirm_delete = tname
                 st.rerun()
 
