@@ -295,11 +295,44 @@ if page == "🗄️ База даних":
         total_tables = len(tables_info)
         total_rows = tables_info["rows"].sum()
         db_size_str = db_size.iloc[0]["size"] if not db_size.empty else "?"
+        size_bytes = db_size.iloc[0]["size_bytes"] if not db_size.empty else 0
 
-        c1, c2, c3 = st.columns(3)
+        # Heroku plan limits (bytes)
+        PLAN_LIMITS = {
+            "Mini":       1  * 1024**3,   # 1 GB
+            "Basic":      10 * 1024**3,   # 10 GB
+            "Standard-0": 64 * 1024**3,   # 64 GB
+        }
+
+        # Автодетект плану по розміру
+        if size_bytes <= 1.1 * 1024**3:
+            plan_name, plan_limit = "Mini", PLAN_LIMITS["Mini"]
+        elif size_bytes <= 11 * 1024**3:
+            plan_name, plan_limit = "Basic", PLAN_LIMITS["Basic"]
+        else:
+            plan_name, plan_limit = "Standard-0", PLAN_LIMITS["Standard-0"]
+
+        used_pct = (size_bytes / plan_limit * 100) if plan_limit else 0
+        remaining_bytes = max(0, plan_limit - size_bytes)
+        remaining_mb = remaining_bytes / (1024**2)
+
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("📦 Розмір БД", db_size_str)
         c2.metric("📊 Таблиць", f"{total_tables}")
         c3.metric("📝 Рядків (всього)", f"{total_rows:,.0f}")
+        c4.metric("💾 Залишок", f"{remaining_mb:.0f} MB")
+
+        # Progress bar
+        bar_color = "🟢" if used_pct < 70 else "🟡" if used_pct < 90 else "🔴"
+        st.markdown(f"{bar_color} **Heroku {plan_name}**: {db_size_str} / "
+                    f"{plan_limit / (1024**3):.0f} GB ({used_pct:.1f}%)")
+        st.progress(min(used_pct / 100, 1.0))
+
+        if used_pct >= 90:
+            st.error(f"⚠️ БД майже повна! Залишилось {remaining_mb:.0f} MB. "
+                     f"Видали старі таблиці або апгрейд на Basic (10 GB).")
+        elif used_pct >= 70:
+            st.warning(f"БД заповнена на {used_pct:.0f}%. Слідкуй за розміром.")
 
     st.divider()
 
