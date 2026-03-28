@@ -861,4 +861,4 @@ else:
                 st.text(f"Duration: {row['duration']}s")
                 st.text(f"Group:    {row['group_label']}")
                 if row["error_msg"]:
-                    st.code(row["error_msg"], language="text")
+                    st.code(row["error_msg"], language="text") 
