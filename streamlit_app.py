@@ -259,16 +259,6 @@ def chart_retry_effectiveness(summary):
 # Sidebar — навігація
 # ============================================
 st.sidebar.markdown("## 📡 ETL Monitor")
-page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних"], label_visibility="collapsed")
-
-if st.sidebar.button("🔄 Оновити"):
-    st.cache_resource.clear()
-    st.rerun()
-
-# ============================================
-# Sidebar — навігація
-# ============================================
-st.sidebar.markdown("## 📡 ETL Monitor")
 page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних", "📋 Архітектура"], label_visibility="collapsed")
 
 if st.sidebar.button("🔄 Оновити"):
@@ -861,4 +851,4 @@ else:
                 st.text(f"Duration: {row['duration']}s")
                 st.text(f"Group:    {row['group_label']}")
                 if row["error_msg"]:
-                    st.code(row["error_msg"], language="text") 
+                    st.code(row["error_msg"], language="text")
