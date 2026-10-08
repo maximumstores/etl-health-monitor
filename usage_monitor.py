@@ -29,6 +29,9 @@ import streamlit as st
 TZ = "Europe/Kyiv"
 PERIODS = [7, 14, 30, 60]
 
+# Розробники / адміни: їхні входи (тестування, дебаг) не рахуються в метриках. Ім'я до @.
+ADMIN_USERS = {"a.borulko", "v.tereshyn"}
+
 # goal — ціль регулярності з Scorecard (%). Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
 TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
@@ -71,7 +74,7 @@ I18N = {
         "where": "Де в БД таблиці входів (для налаштування TOOLS)",
         "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
         "schema_error": "Не вдалось переглянути схему БД: {e}",
-        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
     },
     "ru": {
         "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
@@ -96,7 +99,7 @@ I18N = {
         "where": "Где в БД таблицы входов (для настройки TOOLS)",
         "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
         "schema_error": "Не удалось просмотреть схему БД: {e}",
-        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
     },
     "en": {
         "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
@@ -121,7 +124,7 @@ I18N = {
         "where": "Where login tables live in the DB (for configuring TOOLS)",
         "no_tables": "No tables that look like login / session / page_view were found.",
         "schema_error": "Could not inspect the DB schema: {e}",
-        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
     },
 }
 
@@ -349,6 +352,7 @@ def show_usage_monitor():
         t("period"), PERIODS, horizontal=True, index=0,
         format_func=lambda n: t("days_n", n=n),
     )
+    incl_admins = st.toggle(t("incl_admins"), value=False)
     of = t("of")
 
     now = pd.Timestamp.now(tz=TZ)
@@ -356,6 +360,8 @@ def show_usage_monitor():
     for tool in TOOLS:
         try:
             df = load_logins(tool.get("schema", ""), tool.get("bq_table", ""))
+            if not incl_admins:
+                df = df[~df["user"].isin(ADMIN_USERS)]
             results[tool["name"]] = summarize(df, now, period)
         except Exception as e:  # схеми/таблиці може ще не бути — не ламаємо всю сторінку
             src = tool.get("bq_table") or f"{tool.get('schema')}.login_log"
