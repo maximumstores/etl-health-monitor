@@ -34,6 +34,9 @@ TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
     {"name": "BSR Radar", "schema": "bsr_radar", "url": "https://competitor-bsr.streamlit.app"},
     {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app"},  # login_log у public
+    # Forecast пише login_log у BigQuery, а не в Postgres → потрібен секрет [gcp_service_account]
+    {"name": "Forecast", "bq_table": "reorder-497714.forecast.login_log",
+     "url": "https://forecast-merino.streamlit.app"},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
@@ -215,14 +218,29 @@ def find_login_tables() -> pd.DataFrame:
         conn.close()
 
 
+def _bq_logins(table: str) -> pd.DataFrame:
+    """login_log із BigQuery (email, logged_in_at). Ключ сервісного акаунта — st.secrets["gcp_service_account"]."""
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+
+    info = dict(st.secrets["gcp_service_account"])
+    creds = service_account.Credentials.from_service_account_info(
+        info, scopes=["https://www.googleapis.com/auth/bigquery"])
+    client = bigquery.Client(credentials=creds, project=table.split(".")[0], location="EU")
+    return client.query(f"SELECT email, logged_in_at FROM `{table}`").result().to_dataframe()
+
+
 @st.cache_data(ttl=300, show_spinner=False)
-def load_logins(schema: str) -> pd.DataFrame:
+def load_logins(schema: str = "", bq_table: str = "") -> pd.DataFrame:
     """Усі входи тулу: email, user (до @), ts (київський час), d (дата входу)."""
-    conn = get_conn()
-    try:
-        df = pd.read_sql(f"SELECT email, logged_in_at FROM {schema}.login_log", conn)
-    finally:
-        conn.close()
+    if bq_table:
+        df = _bq_logins(bq_table)
+    else:
+        conn = get_conn()
+        try:
+            df = pd.read_sql(f"SELECT email, logged_in_at FROM {schema}.login_log", conn)
+        finally:
+            conn.close()
     df["ts"] = pd.to_datetime(df["logged_in_at"], utc=True).dt.tz_convert(TZ)
     df["user"] = df["email"].astype(str).str.split("@").str[0]
     df["d"] = df["ts"].dt.tz_localize(None).dt.normalize()
@@ -329,9 +347,11 @@ def show_usage_monitor():
     results, errors = {}, []
     for tool in TOOLS:
         try:
-            results[tool["name"]] = summarize(load_logins(tool["schema"]), now, period)
+            df = load_logins(tool.get("schema", ""), tool.get("bq_table", ""))
+            results[tool["name"]] = summarize(df, now, period)
         except Exception as e:  # схеми/таблиці може ще не бути — не ламаємо всю сторінку
-            errors.append(f"{tool['name']} ({tool['schema']}.login_log): {e}")
+            src = tool.get("bq_table") or f"{tool.get('schema')}.login_log"
+            errors.append(f"{tool['name']} ({src}): {e}")
 
     for msg in errors:
         st.warning(t("read_error", msg=msg))
