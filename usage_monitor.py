@@ -457,9 +457,13 @@ def show_usage_monitor():
             "↗": tool_url.get(name) or None,
         })
     reg_col, dyn_col, trend_col = t("regularity") + " %", t("dyn"), t("trend")
+    summary_df = pd.DataFrame(rows)
+    styled = summary_df.style.map(
+        lambda _: "font-weight: 600; color: #2563eb;", subset=[t("tool")])
     st.dataframe(
-        pd.DataFrame(rows), hide_index=True, use_container_width=True,
+        styled, hide_index=True, use_container_width=True,
         column_config={
+            t("tool"): st.column_config.TextColumn(t("tool"), width="medium"),
             "↗": st.column_config.LinkColumn("↗", display_text=t("open"), width="small"),
             reg_col: st.column_config.ProgressColumn(reg_col, format="%.0f%%", min_value=0, max_value=100),
             dyn_col: st.column_config.NumberColumn(dyn_col, format="%+.0f"),
