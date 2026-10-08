@@ -40,6 +40,8 @@ TOOLS = [
     # Forecast пише login_log у BigQuery, а не в Postgres → потрібен секрет [gcp_service_account]
     {"name": "Forecast", "bq_table": "reorder-497714.forecast.login_log",
      "url": "https://forecast-merino.streamlit.app", "goal": 80},
+    {"name": "FBA Replenishment", "bq_table": "reorder-497714.fba_replenishment.login_log",
+     "url": "https://fba-replenishment.streamlit.app", "goal": 80},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
