@@ -29,14 +29,14 @@ import streamlit as st
 TZ = "Europe/Kyiv"
 PERIODS = [7, 14, 30, 60]
 
-# Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
+# goal — ціль регулярності з Scorecard (%). Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
 TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
-    {"name": "BSR Radar", "schema": "bsr_radar", "url": "https://competitor-bsr.streamlit.app"},
-    {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app"},  # login_log у public
+    {"name": "BSR Radar", "schema": "bsr_radar", "url": "https://competitor-bsr.streamlit.app", "goal": 80},
+    {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app", "goal": 80},  # login_log у public
     # Forecast пише login_log у BigQuery, а не в Postgres → потрібен секрет [gcp_service_account]
     {"name": "Forecast", "bq_table": "reorder-497714.forecast.login_log",
-     "url": "https://forecast-merino.streamlit.app"},
+     "url": "https://forecast-merino.streamlit.app", "goal": 80},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
@@ -71,7 +71,7 @@ I18N = {
         "where": "Де в БД таблиці входів (для налаштування TOOLS)",
         "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
         "schema_error": "Не вдалось переглянути схему БД: {e}",
-        "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
     },
     "ru": {
         "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
@@ -96,7 +96,7 @@ I18N = {
         "where": "Где в БД таблицы входов (для настройки TOOLS)",
         "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
         "schema_error": "Не удалось просмотреть схему БД: {e}",
-        "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
     },
     "en": {
         "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
@@ -121,7 +121,7 @@ I18N = {
         "where": "Where login tables live in the DB (for configuring TOOLS)",
         "no_tables": "No tables that look like login / session / page_view were found.",
         "schema_error": "Could not inspect the DB schema: {e}",
-        "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
     },
 }
 
@@ -306,8 +306,16 @@ def summarize(df: pd.DataFrame, now: pd.Timestamp, period: int) -> dict:
         if not df.empty else pd.Series(dtype=int)
     )
 
+    if df.empty:
+        inactive = []
+    else:
+        first_seen = df.groupby("email")["d"].min()
+        base_emails = first_seen[first_seen <= today].index
+        active_emails = set(df[df["d"] >= d_start]["email"])
+        inactive = sorted(e.split("@")[0] for e in base_emails if e not in active_emails)
+
     return {
-        **cur,
+        **cur, "inactive": inactive, "today": today,
         "delta": round(cur["reg"] - prev["reg"], 1),
         "weeks": weeks, "days_idle": days_idle, "people": people,
     }
@@ -380,6 +388,7 @@ def show_usage_monitor():
     # --- Картки тулів: те, що переноситься в Scorecard ---
     st.subheader(t("scorecard", n=period))
     tool_url = {tl["name"]: tl.get("url", "") for tl in TOOLS}
+    goals = {tl["name"]: tl.get("goal") for tl in TOOLS}
     names = list(results)
     for i in range(0, len(names), 2):
         cols = st.columns(2)
@@ -393,9 +402,26 @@ def show_usage_monitor():
                     unsafe_allow_html=True,
                 )
                 st.metric(t("regularity"), f"{r['reg']:.0f}%", f"{r['delta']:+.0f} {t('delta')}")
+                goal = goals.get(name)
+                if goal:
+                    left = goal - r["reg"]
+                    note = t("goal_ok") if left <= 0 else t("goal_left", n=f"{left:.0f}")
+                    reg_txt = f"{r['reg']:.0f}"
+                    st.progress(min(r["reg"] / goal, 1.0),
+                                text=t("goal_line", goal=goal, reg=reg_txt) + " — " + note)
                 m2, m3 = st.columns(2)
                 m2.metric(t("entered"), f"{r['entered']} {of} {r['base']}")
                 m3.metric(t("avg_days"), f"{r['avg_days']:g} {of} {r['workdays']}")
+                st.caption(t("trend4"))
+                st.bar_chart(pd.Series(list(r["weeks"].values())[-4:],
+                                       index=list(r["weeks"].keys())[-4:]),
+                             height=110, y_label="", x_label="")
+                if r["inactive"]:
+                    st.markdown(f"**{t('inactive')}:** " + ", ".join(r["inactive"]))
+                else:
+                    st.markdown(f"**{t('inactive')}:** {t('all_active')}")
+                st.caption(t("scorecard_line"))
+                st.code(f"{r['today']:%Y-%m-%d} — {r['reg']:.0f}%", language=None)
 
     # --- Зведення ---
     st.subheader(t("summary"))
