@@ -9,7 +9,7 @@ usage_monitor.py — «Активність дашбордів» для ETL Moni
   * матриця «хто чим користується», регулярність по тижнях (пн–нд) для Scorecard
 
 Формула (та сама, що на вкладці BSR Radar):
-    днів_у_людини       = кількість різних днів із входом у періоді (київський час)
+    днів_у_людини       = кількість різних робочих днів (пн–пт) із входом у періоді (київський час)
     робочих_днів        = пн–пт у періоді (для 7 днів це завжди 5)
     регулярність_людини = min(днів_у_людини / робочих_днів, 1)
     Регулярність        = середнє по всіх, хто хоч раз заходив у тул до кінця періоду
@@ -277,11 +277,14 @@ def window_stats(df: pd.DataFrame, d_start: pd.Timestamp, d_end: pd.Timestamp) -
 
     wd = max(workdays(d_start, d_end), 1)
     in_win = df[(df["d"] >= d_start) & (df["d"] <= d_end) & df["email"].isin(base_users)]
-    days_per_user = in_win.groupby("email")["d"].nunique().reindex(base_users, fill_value=0)
+    # єдиний стандарт: у «днях» рахуються тільки робочі дні пн–пт; «зайшли» — будь-який вхід у періоді
+    in_win_wd = in_win[in_win["d"].dt.weekday < 5]
+    days_per_user = in_win_wd.groupby("email")["d"].nunique().reindex(base_users, fill_value=0)
+    entered = int(in_win["email"].nunique())
 
     reg = (days_per_user / wd).clip(upper=1).mean() * 100
     return {
-        "entered": int((days_per_user > 0).sum()),
+        "entered": entered,
         "base": int(len(base_users)),
         "reg": round(float(reg), 1),
         "avg_days": round(float(days_per_user.mean()), 1),
