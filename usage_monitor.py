@@ -1,28 +1,23 @@
 """
-usage_monitor.py — розділ «Активність дашбордів» для ETL Monitor.
+usage_monitor.py — «Активність дашбордів» для ETL Monitor (UK / RU / EN).
 
 Збирає в одному місці те, що кожен тул показує на своїй вкладці «Активність дашборда»:
   * Регулярність (це число йде в Scorecard) + динаміка в п.п. до попереднього періоду
   * «Зайшли X з Y» і середня кількість днів із входом
-  * вибір періоду 7 / 14 / 30 / 60 днів, як у вкладках тулів
-  * мініграфік за 4 тижні, останній вхід, статус (🟢 / 🟡 / 🔴)
-  * матриця «хто чим користується»
-  * Регулярність по тижнях (пн–нд) для переносу в Scorecard
+  * вибір періоду 7 / 14 / 30 / 60 днів
+  * мініграфік за 4 тижні, останній вхід, статус
+  * матриця «хто чим користується», регулярність по тижнях (пн–нд) для Scorecard
 
 Формула (та сама, що на вкладці BSR Radar):
-    днів_у_людини   = кількість різних днів із входом у періоді (київський час)
-    робочих_днів    = пн–пт у періоді (для 7 днів це завжди 5)
+    днів_у_людини       = кількість різних днів із входом у періоді (київський час)
+    робочих_днів        = пн–пт у періоді (для 7 днів це завжди 5)
     регулярність_людини = min(днів_у_людини / робочих_днів, 1)
-    Регулярність    = середнє по всіх, хто хоч раз заходив у тул до кінця періоду
-    Зайшли X з Y    = X — хто зайшов у періоді, Y — усі, хто хоч раз заходив
+    Регулярність        = середнє по всіх, хто хоч раз заходив у тул до кінця періоду
 
-Вимоги до кожного тулу: таблиця <schema>.login_log (email TEXT, logged_in_at TIMESTAMPTZ).
-Тули на Google Sheets пишуть у таку саму таблицю (через скрипт Drive Activity),
-тож для монітора вони виглядають так само, як дашборди.
-Підключення до БД: змінна DATABASE_URL (як в ETL Monitor); запасний варіант — st.secrets["db"].
+Вимога до кожного тулу: таблиця <schema>.login_log (email TEXT, logged_in_at TIMESTAMPTZ).
+Підключення до БД: змінна DATABASE_URL; запасний варіант — st.secrets["db"].
 
-Запуск окремо для перевірки:  streamlit run usage_monitor.py
-Підключення в основний app.py — див. коментар у кінці файлу.
+У app.py:  apply_style(), sidebar_controls() (повертає ключ сторінки), show_usage_monitor().
 """
 
 import os
@@ -37,10 +32,153 @@ PERIODS = [7, 14, 30, 60]
 # Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
 TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
-    {"name": "BSR Radar", "schema": "bsr_radar"},
-    {"name": "Rating Radar", "schema": "public"},   # login_log у схемі public (app.py → _log_login)
+    {"name": "BSR Radar", "schema": "bsr_radar", "url": ""},   # впиши посилання на дашборд
+    {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app"},  # login_log у public
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
+
+
+# ──────────────────────────────────────────────
+# Переклади
+# ──────────────────────────────────────────────
+
+LANGS = {"uk": "УКР", "ru": "РУС", "en": "ENG"}
+
+I18N = {
+    "uk": {
+        "nav_health": "ETL Health", "nav_db": "База даних", "nav_arch": "Архітектура",
+        "nav_usage": "Активність дашбордів", "refresh": "Оновити",
+        "title": "Активність дашбордів",
+        "subtitle": "Час київський. Регулярність — середня частка робочих днів із входом серед людей, "
+                    "які хоч раз заходили в тул. Динаміка — до попереднього періоду такої ж довжини.",
+        "period": "Період", "days_n": "{n} дн.", "of": "з",
+        "k_tools": "Тулів у моніторингу", "k_avg": "Середня регулярність", "k_idle": "Без входів 7+ днів",
+        "scorecard": "% для Scorecard · останні {n} дн.",
+        "regularity": "Регулярність", "delta": "п.п. до попереднього періоду",
+        "entered": "Зайшли", "avg_days": "Днів у середньому",
+        "summary": "Зведення", "tool": "Інструмент", "trend": "4 тижні",
+        "last_login": "Останній вхід", "status": "Статус", "dyn": "Динаміка, п.п.",
+        "who": "Хто чим користується · входів за {n} дн.", "employee": "Співробітник",
+        "total": "Всього", "no_logins": "За {n} дн. входів не було.",
+        "weekly": "% для Scorecard по тижнях", "week": "Тиждень (пн–нд)", "from": "з",
+        "weekly_note": "Для Scorecard бери завершений тиждень: верхній рядок рахується за пройдені "
+                       "дні поточного тижня і ще зміниться.",
+        "no_data": "Немає даних: жоден тул ще не пише login_log.",
+        "read_error": "Не вдалось прочитати логи — {msg}",
+        "where": "Де в БД таблиці входів (для налаштування TOOLS)",
+        "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
+        "schema_error": "Не вдалось переглянути схему БД: {e}",
+        "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+    },
+    "ru": {
+        "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
+        "nav_usage": "Активность дашбордов", "refresh": "Обновить",
+        "title": "Активность дашбордов",
+        "subtitle": "Время киевское. Регулярность — средняя доля рабочих дней со входом среди людей, "
+                    "которые хоть раз заходили в тул. Динамика — к предыдущему периоду такой же длины.",
+        "period": "Период", "days_n": "{n} дн.", "of": "из",
+        "k_tools": "Тулов в мониторинге", "k_avg": "Средняя регулярность", "k_idle": "Без входов 7+ дней",
+        "scorecard": "% для Scorecard · последние {n} дн.",
+        "regularity": "Регулярность", "delta": "п.п. к предыдущему периоду",
+        "entered": "Зашли", "avg_days": "Дней в среднем",
+        "summary": "Сводка", "tool": "Инструмент", "trend": "4 недели",
+        "last_login": "Последний вход", "status": "Статус", "dyn": "Динамика, п.п.",
+        "who": "Кто чем пользуется · входов за {n} дн.", "employee": "Сотрудник",
+        "total": "Всего", "no_logins": "За {n} дн. входов не было.",
+        "weekly": "% для Scorecard по неделям", "week": "Неделя (пн–вс)", "from": "с",
+        "weekly_note": "Для Scorecard бери завершённую неделю: верхняя строка считается за прошедшие "
+                       "дни текущей недели и ещё изменится.",
+        "no_data": "Нет данных: ни один тул ещё не пишет login_log.",
+        "read_error": "Не удалось прочитать логи — {msg}",
+        "where": "Где в БД таблицы входов (для настройки TOOLS)",
+        "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
+        "schema_error": "Не удалось просмотреть схему БД: {e}",
+        "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+    },
+    "en": {
+        "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
+        "nav_usage": "Dashboard activity", "refresh": "Refresh",
+        "title": "Dashboard activity",
+        "subtitle": "Kyiv time. Regularity is the average share of working days with a login among people "
+                    "who have ever used the tool. Change is vs. the previous period of the same length.",
+        "period": "Period", "days_n": "{n} d", "of": "of",
+        "k_tools": "Tools monitored", "k_avg": "Average regularity", "k_idle": "No logins in 7+ days",
+        "scorecard": "% for Scorecard · last {n} days",
+        "regularity": "Regularity", "delta": "pp vs. previous period",
+        "entered": "Logged in", "avg_days": "Avg. days",
+        "summary": "Overview", "tool": "Tool", "trend": "4 weeks",
+        "last_login": "Last login", "status": "Status", "dyn": "Change, pp",
+        "who": "Who uses what · logins in {n} days", "employee": "Employee",
+        "total": "Total", "no_logins": "No logins in the last {n} days.",
+        "weekly": "% for Scorecard by week", "week": "Week (Mon–Sun)", "from": "from",
+        "weekly_note": "Use a completed week for Scorecard: the top row covers the elapsed days "
+                       "of the current week and will still change.",
+        "no_data": "No data: no tool writes login_log yet.",
+        "read_error": "Could not read logs — {msg}",
+        "where": "Where login tables live in the DB (for configuring TOOLS)",
+        "no_tables": "No tables that look like login / session / page_view were found.",
+        "schema_error": "Could not inspect the DB schema: {e}",
+        "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+    },
+}
+
+
+def t(key: str, **kw) -> str:
+    lang = st.session_state.get("lang", "uk")
+    text = I18N.get(lang, I18N["uk"]).get(key) or I18N["uk"][key]
+    return text.format(**kw) if kw else text
+
+
+# ──────────────────────────────────────────────
+# Стиль і навігація (спільні для всього застосунку)
+# ──────────────────────────────────────────────
+
+_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+.stApp { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
+.block-container { padding-top: 2.4rem; max-width: 1180px; }
+h1 { font-size: 1.7rem !important; font-weight: 600 !important; letter-spacing: -0.02em; }
+h2, h3 { font-size: 1.05rem !important; font-weight: 600 !important; letter-spacing: -0.01em;
+         margin-top: 1.6rem !important; }
+[data-testid="stHeaderActionElements"] { display: none; }
+header[data-testid="stHeader"] { background: transparent; }
+section[data-testid="stSidebar"] { border-right: 1px solid rgba(128,128,128,.16); }
+[data-testid="stMetricLabel"] p { font-size: .72rem; text-transform: uppercase;
+         letter-spacing: .05em; opacity: .6; }
+[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 600; letter-spacing: -0.02em; }
+[data-testid="stMetricDelta"] { font-size: .8rem; }
+div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"] [data-testid="stMetric"]) {
+         border-radius: 14px; border-color: rgba(128,128,128,.2); }
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+.um-caption { font-size: .85rem; opacity: .6; margin: -.4rem 0 1.2rem; line-height: 1.5; }
+.um-tool { font-weight: 600; font-size: 1.05rem; margin-bottom: .4rem; }
+.um-open { font-size: .78rem; font-weight: 500; margin-left: .6rem; text-decoration: none;
+           padding: .1rem .5rem; border: 1px solid rgba(128,128,128,.35); border-radius: 999px; }
+</style>
+"""
+
+
+def apply_style():
+    st.markdown(_CSS, unsafe_allow_html=True)
+
+
+def sidebar_controls() -> str:
+    """Бічне меню: навігація + мова + оновлення. Повертає ключ сторінки."""
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "uk"
+    st.sidebar.markdown("### 📡 ETL Monitor")
+    labels = {"health": "nav_health", "db": "nav_db", "arch": "nav_arch", "usage": "nav_usage"}
+    icons = {"health": "🏥", "db": "🗄️", "arch": "📋", "usage": "📈"}
+    page = st.sidebar.radio(
+        "nav", list(labels), label_visibility="collapsed",
+        format_func=lambda k: f"{icons[k]}  {t(labels[k])}",
+    )
+    st.sidebar.radio(
+        "lang", list(LANGS), key="lang", horizontal=True, label_visibility="collapsed",
+        format_func=lambda k: LANGS[k],
+    )
+    return page
 
 
 # ──────────────────────────────────────────────
@@ -60,7 +198,7 @@ def get_conn():
 
 @st.cache_data(ttl=300, show_spinner=False)
 def find_login_tables() -> pd.DataFrame:
-    """Де в БД лежать таблиці входів: schema.table, схожі на login/session/visit/audit."""
+    """Де в БД таблиці входів: schema.table, схожі на login/session/visit/audit."""
     conn = get_conn()
     try:
         return pd.read_sql(
@@ -167,10 +305,10 @@ def status_icon(days_idle):
 
 def idle_text(days_idle):
     if days_idle is None:
-        return "ніколи"
+        return t("never")
     if days_idle == 0:
-        return "сьогодні"
-    return f"{days_idle} дн тому"
+        return t("today")
+    return t("ago", n=days_idle)
 
 
 # ──────────────────────────────────────────────
@@ -178,18 +316,14 @@ def idle_text(days_idle):
 # ──────────────────────────────────────────────
 
 def show_usage_monitor():
-    st.title("📈 Активність дашбордів")
-    top_l, top_r = st.columns([1, 3])
-    with top_l:
-        if st.button("🔄 Оновити"):
-            st.cache_data.clear()
-            st.rerun()
-    with top_r:
-        period = st.radio("Період", PERIODS, horizontal=True, format_func=lambda n: f"{n} дн.")
-    st.caption(
-        "Час київський. Регулярність = середня частка робочих днів із входом по людях, "
-        "які хоч раз заходили в тул. Динаміка — до попереднього періоду такої ж довжини."
+    st.title(t("title"))
+    st.markdown(f'<div class="um-caption">{t("subtitle")}</div>', unsafe_allow_html=True)
+
+    period = st.radio(
+        t("period"), PERIODS, horizontal=True, index=0,
+        format_func=lambda n: t("days_n", n=n),
     )
+    of = t("of")
 
     now = pd.Timestamp.now(tz=TZ)
     results, errors = {}, []
@@ -200,94 +334,102 @@ def show_usage_monitor():
             errors.append(f"{tool['name']} ({tool['schema']}.login_log): {e}")
 
     for msg in errors:
-        st.warning(f"Не вдалось прочитати логи — {msg}")
+        st.warning(t("read_error", msg=msg))
     if errors:
-        with st.expander("🔎 Де в БД таблиці входів (для налаштування TOOLS)", expanded=True):
+        with st.expander("🔎 " + t("where"), expanded=True):
             try:
                 found = find_login_tables()
                 if found.empty:
-                    st.caption("Таблиць, схожих на login / session / page_view, не знайдено.")
+                    st.caption(t("no_tables"))
                 else:
                     st.dataframe(found, hide_index=True, use_container_width=True)
             except Exception as e:
-                st.caption(f"Не вдалось переглянути схему БД: {e}")
+                st.caption(t("schema_error", e=e))
     if not results:
-        st.info("Немає даних: жоден тул ще не пише login_log.")
+        st.info(t("no_data"))
         return
 
-    # --- Верхні лічильники ---
+    # --- KPI ---
     avg_reg = sum(r["reg"] for r in results.values()) / len(results)
     idle_tools = sum(1 for r in results.values() if r["days_idle"] is None or r["days_idle"] > 7)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Тулів у моніторингу", len(results))
-    c2.metric(f"Середня регулярність за {period} дн.", f"{avg_reg:.0f}%")
-    c3.metric("Тулів без входів 7+ днів", idle_tools)
+    k1, k2, k3 = st.columns(3)
+    k1.metric(t("k_tools"), len(results))
+    k2.metric(t("k_avg"), f"{avg_reg:.0f}%")
+    k3.metric(t("k_idle"), idle_tools)
 
-    # --- % для Scorecard по кожному тулу (як шапка вкладки в самому тулі) ---
-    st.subheader(f"% для Scorecard — останні {period} днів")
-    for name, r in results.items():
-        st.markdown(f"**{name}**")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Регулярність", f"{r['reg']:.0f}%", f"{r['delta']:+.0f} п.п. до попереднього періоду")
-        m2.metric("Зайшли", f"{r['entered']} з {r['base']}")
-        m3.metric("У середньому днів", f"{r['avg_days']:g} з {r['workdays']}")
+    # --- Картки тулів: те, що переноситься в Scorecard ---
+    st.subheader(t("scorecard", n=period))
+    tool_url = {tl["name"]: tl.get("url", "") for tl in TOOLS}
+    names = list(results)
+    for i in range(0, len(names), 2):
+        cols = st.columns(2)
+        for col, name in zip(cols, names[i:i + 2]):
+            r = results[name]
+            with col.container(border=True):
+                url = tool_url.get(name, "")
+                link = f' <a class="um-open" href="{url}" target="_blank">{t("open")} ↗</a>' if url else ""
+                st.markdown(
+                    f'<div class="um-tool">{status_icon(r["days_idle"])}&nbsp; {name}{link}</div>',
+                    unsafe_allow_html=True,
+                )
+                st.metric(t("regularity"), f"{r['reg']:.0f}%", f"{r['delta']:+.0f} {t('delta')}")
+                m2, m3 = st.columns(2)
+                m2.metric(t("entered"), f"{r['entered']} {of} {r['base']}")
+                m3.metric(t("avg_days"), f"{r['avg_days']:g} {of} {r['workdays']}")
 
-    # --- Зведення по тулах ---
-    st.subheader("Зведення по інструментах")
+    # --- Зведення ---
+    st.subheader(t("summary"))
     rows = []
     for name, r in results.items():
         rows.append({
-            "Інструмент": name,
-            f"Регулярність, % ({period} дн.)": r["reg"],
-            "Динаміка, п.п.": r["delta"],
-            "4 тижні": list(r["weeks"].values())[-4:],
-            "Зайшли": f"{r['entered']} з {r['base']}",
-            "Останній вхід": idle_text(r["days_idle"]),
-            "Статус": status_icon(r["days_idle"]),
+            t("tool"): name,
+            t("regularity") + " %": r["reg"],
+            t("dyn"): r["delta"],
+            t("trend"): list(r["weeks"].values())[-4:],
+            t("last_login"): idle_text(r["days_idle"]),
+            t("status"): status_icon(r["days_idle"]),
+            "↗": tool_url.get(name) or None,
         })
+    reg_col, dyn_col, trend_col = t("regularity") + " %", t("dyn"), t("trend")
     st.dataframe(
-        pd.DataFrame(rows),
-        hide_index=True,
-        use_container_width=True,
+        pd.DataFrame(rows), hide_index=True, use_container_width=True,
         column_config={
-            f"Регулярність, % ({period} дн.)": st.column_config.ProgressColumn(
-                f"Регулярність, % ({period} дн.)", format="%.0f%%", min_value=0, max_value=100),
-            "Динаміка, п.п.": st.column_config.NumberColumn("Динаміка, п.п.", format="%+.0f"),
-            "4 тижні": st.column_config.BarChartColumn("4 тижні", y_min=0, y_max=100),
+            "↗": st.column_config.LinkColumn("↗", display_text=t("open"), width="small"),
+            reg_col: st.column_config.ProgressColumn(reg_col, format="%.0f%%", min_value=0, max_value=100),
+            dyn_col: st.column_config.NumberColumn(dyn_col, format="%+.0f"),
+            trend_col: st.column_config.BarChartColumn(trend_col, y_min=0, y_max=100),
         },
     )
 
     # --- Хто чим користується ---
-    st.subheader(f"Хто чим користується (входів за {period} дн.)")
+    st.subheader(t("who", n=period))
     matrix = pd.DataFrame({n: r["people"] for n, r in results.items()})
     if matrix.empty:
-        st.caption(f"За {period} дн. входів не було.")
+        st.caption(t("no_logins", n=period))
     else:
         matrix = matrix.fillna(0).astype(int)
-        matrix.index.name = "Співробітник"
-        matrix["Всього"] = matrix.sum(axis=1)
-        st.dataframe(
-            matrix.sort_values("Всього", ascending=False),
-            use_container_width=True,
-        )
+        matrix.index.name = t("employee")
+        matrix[t("total")] = matrix.sum(axis=1)
+        st.dataframe(matrix.sort_values(t("total"), ascending=False), use_container_width=True)
 
-    # --- Регулярність по тижнях для Scorecard ---
-    st.subheader("% для Scorecard по тижнях")
+    # --- Графік і таблиця по тижнях ---
     weekly = pd.DataFrame({n: r["weeks"] for n, r in results.items()})
+    weekly.index = [i.replace("з ", t("from") + " ", 1) for i in weekly.index]
+    st.subheader(t("chart"))
+    st.line_chart(weekly, height=280)
+    st.subheader(t("weekly"))
     weekly = weekly.iloc[::-1]  # свіжі тижні зверху
-    weekly.index.name = "Тиждень (пн–нд)"
+    weekly.index.name = t("week")
     st.dataframe(
-        weekly,
-        use_container_width=True,
-        column_config={
-            n: st.column_config.NumberColumn(n, format="%.0f%%") for n in weekly.columns
-        },
+        weekly, use_container_width=True,
+        column_config={n: st.column_config.NumberColumn(n, format="%.0f%%") for n in weekly.columns},
     )
-    st.caption(
-        "Для Scorecard бери завершений тиждень: верхній рядок рахується за пройдені дні "
-        "поточного тижня і ще зміниться."
-    )
+    st.caption(t("weekly_note"))
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="Activity", layout="wide")
+    apply_style()
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "uk"
     show_usage_monitor()
