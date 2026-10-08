@@ -35,13 +35,13 @@ ADMIN_USERS = {"a.borulko", "v.tereshyn"}
 # goal — ціль регулярності з Scorecard (%). Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
 TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
-    {"name": "BSR Radar", "schema": "bsr_radar", "url": "https://competitor-bsr.streamlit.app", "goal": 80},
-    {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app", "goal": 80},  # login_log у public
+    {"name": "BSR Radar", "schema": "bsr_radar", "url": "https://competitor-bsr.streamlit.app", "desc": {"uk": "Динаміка BSR та позицій по ASIN і конкурентах", "ru": "Динамика BSR и позиций по ASIN и конкурентам", "en": "BSR and rank trends for ASINs and competitors"}, "goal": 80},
+    {"name": "Rating Radar", "schema": "public", "url": "https://rating-radar.streamlit.app", "desc": {"uk": "Рейтинги child-ASIN, прогноз тренду й алерти", "ru": "Рейтинги child-ASIN, прогноз тренда и алерты", "en": "Child-ASIN ratings, trend forecast and alerts"}, "goal": 80},  # login_log у public
     # Forecast пише login_log у BigQuery, а не в Postgres → потрібен секрет [gcp_service_account]
     {"name": "Forecast", "bq_table": "reorder-497714.forecast.login_log",
-     "url": "https://forecast-merino.streamlit.app", "goal": 80},
+     "url": "https://forecast-merino.streamlit.app", "desc": {"uk": "План продажів і прогноз по групах", "ru": "План продаж и прогноз по группам", "en": "Sales plan and forecast by group"}, "goal": 80},
     {"name": "FBA Replenishment", "bq_table": "reorder-497714.fba_replenishment.login_log",
-     "url": "https://fba-replenishment.streamlit.app", "goal": 80},
+     "url": "https://fba-replenishment.streamlit.app", "desc": {"uk": "Що поповнити на FBA: ASIN, покриття, алерти", "ru": "Что пополнить на FBA: ASIN, покрытие, алерты", "en": "What to replenish on FBA: ASINs, coverage, alerts"}, "goal": 80},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
@@ -76,7 +76,7 @@ I18N = {
         "where": "Де в БД таблиці входів (для налаштування TOOLS)",
         "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
         "schema_error": "Не вдалось переглянути схему БД: {e}",
-        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "desc": "Опис", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
     },
     "ru": {
         "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
@@ -101,7 +101,7 @@ I18N = {
         "where": "Где в БД таблицы входов (для настройки TOOLS)",
         "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
         "schema_error": "Не удалось просмотреть схему БД: {e}",
-        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "desc": "Описание", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
     },
     "en": {
         "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
@@ -126,9 +126,14 @@ I18N = {
         "where": "Where login tables live in the DB (for configuring TOOLS)",
         "no_tables": "No tables that look like login / session / page_view were found.",
         "schema_error": "Could not inspect the DB schema: {e}",
-        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "desc": "Description", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
     },
 }
+
+
+def tool_desc(tool: dict) -> str:
+    d = tool.get("desc") or {}
+    return d.get(st.session_state.get("lang", "uk")) or d.get("uk", "")
 
 
 def t(key: str, **kw) -> str:
@@ -400,6 +405,7 @@ def show_usage_monitor():
     st.subheader(t("scorecard", n=period))
     tool_url = {tl["name"]: tl.get("url", "") for tl in TOOLS}
     goals = {tl["name"]: tl.get("goal") for tl in TOOLS}
+    descs = {tl["name"]: tool_desc(tl) for tl in TOOLS}
     names = list(results)
     for i in range(0, len(names), 2):
         cols = st.columns(2)
@@ -412,6 +418,8 @@ def show_usage_monitor():
                     f'<div class="um-tool">{status_icon(r["days_idle"])}&nbsp; {name}{link}</div>',
                     unsafe_allow_html=True,
                 )
+                if descs.get(name):
+                    st.caption(descs[name])
                 st.metric(t("regularity"), f"{r['reg']:.0f}%", f"{r['delta']:+.0f} {t('delta')}")
                 goal = goals.get(name)
                 if goal:
@@ -440,6 +448,7 @@ def show_usage_monitor():
     for name, r in results.items():
         rows.append({
             t("tool"): name,
+            t("desc"): descs.get(name, ""),
             t("regularity") + " %": r["reg"],
             t("dyn"): r["delta"],
             t("trend"): list(r["weeks"].values())[-4:],
