@@ -36,7 +36,7 @@ PERIODS = [7, 14, 30, 60]
 
 # Додати тул = додати рядок. Тули на Google Sheets — теж сюди, коли вони пишуть login_log.
 TOOLS = [
-    {"name": "Kabinet", "schema": "kabinet"},      # схема, куди Kabinet пише login_log
+    # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
     {"name": "BSR Radar", "schema": "bsr_radar"},
     # {"name": "Rating Radar", "schema": "rating_radar"},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
