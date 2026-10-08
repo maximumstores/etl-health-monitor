@@ -38,7 +38,7 @@ PERIODS = [7, 14, 30, 60]
 TOOLS = [
     # {"name": "Kabinet", "schema": "kabinet"},   # додати, коли буде відомо, де лежить його login_log
     {"name": "BSR Radar", "schema": "bsr_radar"},
-    # {"name": "Rating Radar", "schema": "rating_radar"},
+    {"name": "Rating Radar", "schema": "public"},   # login_log у схемі public (app.py → _log_login)
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
