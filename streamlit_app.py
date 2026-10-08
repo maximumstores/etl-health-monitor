@@ -259,7 +259,7 @@ def chart_retry_effectiveness(summary):
 # Sidebar — навігація
 # ============================================
 st.sidebar.markdown("## 📡 ETL Monitor")
-page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних", "📋 Архітектура"], label_visibility="collapsed")
+page = st.sidebar.radio("Сторінка", ["🏥 ETL Health", "🗄️ База даних", "📋 Архітектура", "📈 Активність дашбордів"], label_visibility="collapsed")
 
 if st.sidebar.button("🔄 Оновити"):
     st.cache_resource.clear()
@@ -304,9 +304,16 @@ LOADER_INFO = {
 }
 
 # ============================================
+# PAGE: Активність дашбордів
+# ============================================
+if page == "📈 Активність дашбордів":
+    from usage_monitor import show_usage_monitor
+    show_usage_monitor()
+
+# ============================================
 # PAGE: Архітектура
 # ============================================
-if page == "📋 Архітектура":
+elif page == "📋 Архітектура":
     st.markdown("## 📋 Архітектура ETL Pipeline")
 
     # ── System overview ──
