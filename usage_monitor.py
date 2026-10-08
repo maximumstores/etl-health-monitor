@@ -59,6 +59,25 @@ def get_conn():
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def find_login_tables() -> pd.DataFrame:
+    """Де в БД лежать таблиці входів: schema.table, схожі на login/session/visit/audit."""
+    conn = get_conn()
+    try:
+        return pd.read_sql(
+            """SELECT table_schema AS schema, table_name AS "table"
+               FROM information_schema.tables
+               WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+                 AND (table_name ILIKE '%login%' OR table_name ILIKE '%signin%'
+                      OR table_name ILIKE '%session%' OR table_name ILIKE '%page_view%'
+                      OR table_name ILIKE '%access_log%' OR table_name ILIKE '%audit%')
+               ORDER BY 1, 2""",
+            conn,
+        )
+    finally:
+        conn.close()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def load_logins(schema: str) -> pd.DataFrame:
     """Усі входи тулу: email, user (до @), ts (київський час), d (дата входу)."""
     conn = get_conn()
@@ -182,6 +201,16 @@ def show_usage_monitor():
 
     for msg in errors:
         st.warning(f"Не вдалось прочитати логи — {msg}")
+    if errors:
+        with st.expander("🔎 Де в БД таблиці входів (для налаштування TOOLS)", expanded=True):
+            try:
+                found = find_login_tables()
+                if found.empty:
+                    st.caption("Таблиць, схожих на login / session / page_view, не знайдено.")
+                else:
+                    st.dataframe(found, hide_index=True, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Не вдалось переглянути схему БД: {e}")
     if not results:
         st.info("Немає даних: жоден тул ще не пише login_log.")
         return
