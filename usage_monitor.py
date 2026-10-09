@@ -42,6 +42,10 @@ TOOLS = [
      "url": "https://forecast-merino.streamlit.app", "desc": {"uk": "План продажів і прогноз по групах", "ru": "План продаж и прогноз по группам", "en": "Sales plan and forecast by group"}, "goal": 80},
     {"name": "FBA Replenishment", "bq_table": "reorder-497714.fba_replenishment.login_log",
      "url": "https://fba-replenishment.streamlit.app", "desc": {"uk": "Що поповнити на FBA: ASIN, покриття, алерти", "ru": "Что пополнить на FBA: ASIN, покрытие, алерты", "en": "What to replenish on FBA: ASINs, coverage, alerts"}, "goal": 80},
+    {"name": "Insights Engine", "schema": "insights_radar",
+     "url": "https://insights-engine-radar.streamlit.app", "goal": 80,
+     "desc": {"uk": "Інсайти з відгуків і запитів клієнтів", "ru": "Инсайты из отзывов и запросов клиентов",
+              "en": "Insights from customer reviews and queries"}},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
