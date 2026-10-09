@@ -56,6 +56,9 @@ TOOLS = [
     {"name": "Listing Analyzer", "schema": "listing_analyzer", "url": "https://listing-analyze.streamlit.app", "goal": 80,
      "desc": {"uk": "AI-аналіз лістингів Amazon: контент, фото, A+, бенчмарк", "ru": "AI-анализ листингов Amazon: контент, фото, A+, бенчмарк",
               "en": "AI analysis of Amazon listings: content, photos, A+, benchmark"}},
+    {"name": "Merino BI", "schema": "merino_bi", "url": "https://merino-bi.streamlit.app", "goal": 80,
+     "desc": {"uk": "Amazon FBA BI: продажі, фінанси, склад, ціни, рекламні звіти", "ru": "Amazon FBA BI: продажи, финансы, склад, цены, отчёты",
+              "en": "Amazon FBA BI: sales, finance, inventory, pricing, reports"}},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
