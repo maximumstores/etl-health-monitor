@@ -50,6 +50,9 @@ TOOLS = [
     {"name": "AEO Radar", "schema": "aeo", "url": "https://aeo-monitor.streamlit.app", "goal": 80,
      "desc": {"uk": "Видимість бренду у відповідях AI (Share of Voice)", "ru": "Видимость бренда в ответах AI (Share of Voice)",
               "en": "Brand visibility in AI answers (Share of Voice)"}},
+    {"name": "Supplier Finder", "schema": "supplier_finder", "url": "https://merino-supplier-finder.streamlit.app", "goal": 80,
+     "desc": {"uk": "Пошук постачальників мериноса та аутріч", "ru": "Поиск поставщиков мериноса и аутрич",
+              "en": "Merino supplier search and outreach"}},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
