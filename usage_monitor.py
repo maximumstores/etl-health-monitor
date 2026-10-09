@@ -21,6 +21,7 @@ usage_monitor.py — «Активність дашбордів» для ETL Moni
 """
 
 import os
+from html import escape
 
 import pandas as pd
 import psycopg2
@@ -83,7 +84,7 @@ I18N = {
         "where": "Де в БД таблиці входів (для налаштування TOOLS)",
         "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
         "schema_error": "Не вдалось переглянути схему БД: {e}",
-        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "desc": "Опис", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "desc": "Опис", "prev_period": "Попередній період", "days_short": "Днів", "pp": "п.п.", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
     },
     "ru": {
         "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
@@ -108,7 +109,7 @@ I18N = {
         "where": "Где в БД таблицы входов (для настройки TOOLS)",
         "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
         "schema_error": "Не удалось просмотреть схему БД: {e}",
-        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "desc": "Описание", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "desc": "Описание", "prev_period": "Предыдущий период", "days_short": "Дней", "pp": "п.п.", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
     },
     "en": {
         "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
@@ -133,7 +134,7 @@ I18N = {
         "where": "Where login tables live in the DB (for configuring TOOLS)",
         "no_tables": "No tables that look like login / session / page_view were found.",
         "schema_error": "Could not inspect the DB schema: {e}",
-        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "desc": "Description", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "desc": "Description", "prev_period": "Previous period", "days_short": "Days", "pp": "pp", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
     },
 }
 
@@ -171,6 +172,38 @@ section[data-testid="stSidebar"] { border-right: 1px solid rgba(128,128,128,.16)
 div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"] [data-testid="stMetric"]) {
          border-radius: 14px; border-color: rgba(128,128,128,.2); }
 [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+
+/* --- картки тулів (компактний стиль) --- */
+.mk-card { border: 1px solid rgba(128,128,128,.28); border-top: 3px solid #1d4ed8; border-radius: 2px;
+           padding: 14px 16px 12px; margin-bottom: 14px; }
+.mk-head { display: flex; align-items: center; gap: 8px; }
+.mk-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.mk-dot.g { background: #16a34a; } .mk-dot.y { background: #d97706; } .mk-dot.r { background: #dc2626; }
+.mk-name { font-weight: 600; font-size: .98rem; text-decoration: none !important; color: inherit !important;
+           border-bottom: 1px solid rgba(128,128,128,.5); }
+.mk-name:hover { color: #1d4ed8 !important; border-color: #1d4ed8; }
+.mk-last { margin-left: auto; font-size: .72rem; opacity: .55; white-space: nowrap; }
+.mk-desc { font-size: .78rem; opacity: .6; margin: 3px 0 10px; }
+.mk-main { display: flex; align-items: flex-end; gap: 12px; }
+.mk-num { font-family: Georgia, 'Times New Roman', serif; font-size: 2.6rem; line-height: 1; letter-spacing: -0.02em; }
+.mk-num span { font-size: 1.2rem; opacity: .6; margin-left: 2px; }
+.mk-delta { font-size: .78rem; font-weight: 600; padding-bottom: 5px; }
+.mk-delta.up { color: #16a34a; } .mk-delta.dn { color: #dc2626; } .mk-delta.z { opacity: .5; }
+.mk-spark { margin-left: auto; display: block; }
+.mk-goal { margin: 10px 0 2px; }
+.mk-bar { position: relative; height: 4px; background: rgba(128,128,128,.22); border-radius: 2px; }
+.mk-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #1d4ed8; border-radius: 2px; }
+.mk-bar b { position: absolute; top: -3px; width: 2px; height: 10px; background: currentColor; opacity: .7; }
+.mk-goal small { display: block; font-size: .72rem; opacity: .65; margin-top: 5px; }
+.mk-stats { display: flex; border-top: 1px solid rgba(128,128,128,.22); margin-top: 10px; padding-top: 8px; }
+.mk-stats > div { flex: 1; }
+.mk-stats label { display: block; font-size: .64rem; text-transform: uppercase; letter-spacing: .06em; opacity: .55; }
+.mk-stats b { font-size: .98rem; font-weight: 600; }
+.mk-foot { border-top: 1px solid rgba(128,128,128,.22); margin-top: 8px; padding-top: 7px;
+           font-size: .74rem; line-height: 1.5; }
+.mk-foot label { text-transform: uppercase; letter-spacing: .06em; font-size: .64rem; opacity: .55; margin-right: 6px; }
+.mk-sc { font-family: ui-monospace, Menlo, monospace; font-size: .74rem; opacity: .7; user-select: all;
+         display: block; margin-top: 4px; }
 .um-caption { font-size: .85rem; opacity: .6; margin: -.4rem 0 1.2rem; line-height: 1.5; }
 .um-tool { font-weight: 600; font-size: 1.05rem; margin-bottom: .4rem; }
 .um-open { font-size: .78rem; font-weight: 500; margin-left: .6rem; text-decoration: none;
@@ -361,6 +394,51 @@ def idle_text(days_idle):
 # Сторінка
 # ──────────────────────────────────────────────
 
+def _spark(values) -> str:
+    """Мініграфік за 4 тижні: стовпчики 0–100%, останній — акцентний."""
+    w, h, bw, gap = 64, 28, 12, 5
+    out = []
+    for i, v in enumerate(values):
+        bh = max(2.0, h * min(max(v, 0), 100) / 100)
+        fill = "#1d4ed8" if i == len(values) - 1 else "rgba(128,128,128,.45)"
+        out.append(f'<rect x="{i * (bw + gap)}" y="{h - bh:.1f}" width="{bw}" height="{bh:.1f}" fill="{fill}"/>')
+    return f'<svg class="mk-spark" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{"".join(out)}</svg>'
+
+
+def card_html(name: str, r: dict, url: str, desc: str, goal) -> str:
+    of = t("of")
+    dot = {"🟢": "g", "🟡": "y", "🔴": "r"}[status_icon(r["days_idle"])]
+    title = f'<a class="mk-name" href="{escape(url)}" target="_blank">{escape(name)} ↗</a>' if url \
+        else f'<span class="mk-name" style="border:0">{escape(name)}</span>'
+    d = r["delta"]
+    dcls, arrow = ("up", "▲") if d > 0 else (("dn", "▼") if d < 0 else ("z", "•"))
+    goal_html = ""
+    if goal:
+        left = goal - r["reg"]
+        note = t("goal_ok") if left <= 0 else t("goal_left", n=f"{left:.0f}")
+        goal_text = t("goal_line", goal=goal, reg=f"{r['reg']:.0f}")
+        goal_html = (f'<div class="mk-goal"><div class="mk-bar"><i style="width:{min(r["reg"] / goal, 1) * 100:.0f}%"></i>'
+                     f'<b style="left:calc(100% - 2px)"></b></div>'
+                     f'<small>{goal_text} · {note}</small></div>')
+    inactive = ", ".join(escape(u) for u in r["inactive"]) if r["inactive"] else t("all_active")
+    return (
+        f'<div class="mk-card">'
+        f'<div class="mk-head"><span class="mk-dot {dot}"></span>{title}<span class="mk-last">{idle_text(r["days_idle"])}</span></div>'
+        f'<div class="mk-desc">{escape(desc)}</div>'
+        f'<div class="mk-main"><div class="mk-num">{r["reg"]:.0f}<span>%</span></div>'
+        f'<div class="mk-delta {dcls}">{arrow} {d:+.0f} {t("pp")}</div>'
+        f'{_spark(list(r["weeks"].values())[-4:])}</div>'
+        f'{goal_html}'
+        f'<div class="mk-stats">'
+        f'<div><label>{t("entered")}</label><b>{r["entered"]} {of} {r["base"]}</b></div>'
+        f'<div><label>{t("days_short")}</label><b>{r["avg_days"]:g} {of} {r["workdays"]}</b></div>'
+        f'<div><label>{t("prev_period")}</label><b>{r["reg"] - d:.0f}%</b></div></div>'
+        f'<div class="mk-foot"><label>{t("inactive")}</label>{inactive}'
+        f'<span class="mk-sc">{r["today"]:%Y-%m-%d} — {r["reg"]:.0f}%</span></div>'
+        f'</div>'
+    )
+
+
 def show_usage_monitor():
     st.title(t("title"))
     st.markdown(f'<div class="um-caption">{t("subtitle")}</div>', unsafe_allow_html=True)
@@ -417,37 +495,8 @@ def show_usage_monitor():
     for i in range(0, len(names), 2):
         cols = st.columns(2)
         for col, name in zip(cols, names[i:i + 2]):
-            r = results[name]
-            with col.container(border=True):
-                url = tool_url.get(name, "")
-                link = f' <a class="um-open" href="{url}" target="_blank">{t("open")} ↗</a>' if url else ""
-                st.markdown(
-                    f'<div class="um-tool">{status_icon(r["days_idle"])}&nbsp; {name}{link}</div>',
-                    unsafe_allow_html=True,
-                )
-                if descs.get(name):
-                    st.caption(descs[name])
-                st.metric(t("regularity"), f"{r['reg']:.0f}%", f"{r['delta']:+.0f} {t('delta')}")
-                goal = goals.get(name)
-                if goal:
-                    left = goal - r["reg"]
-                    note = t("goal_ok") if left <= 0 else t("goal_left", n=f"{left:.0f}")
-                    reg_txt = f"{r['reg']:.0f}"
-                    st.progress(min(r["reg"] / goal, 1.0),
-                                text=t("goal_line", goal=goal, reg=reg_txt) + " — " + note)
-                m2, m3 = st.columns(2)
-                m2.metric(t("entered"), f"{r['entered']} {of} {r['base']}")
-                m3.metric(t("avg_days"), f"{r['avg_days']:g} {of} {r['workdays']}")
-                st.caption(t("trend4"))
-                st.bar_chart(pd.Series(list(r["weeks"].values())[-4:],
-                                       index=list(r["weeks"].keys())[-4:]),
-                             height=110, y_label="", x_label="")
-                if r["inactive"]:
-                    st.markdown(f"**{t('inactive')}:** " + ", ".join(r["inactive"]))
-                else:
-                    st.markdown(f"**{t('inactive')}:** {t('all_active')}")
-                st.caption(t("scorecard_line"))
-                st.code(f"{r['today']:%Y-%m-%d} — {r['reg']:.0f}%", language=None)
+            col.markdown(card_html(name, results[name], tool_url.get(name, ""),
+                                   descs.get(name, ""), goals.get(name)), unsafe_allow_html=True)
 
     # --- Зведення ---
     st.subheader(t("summary"))
