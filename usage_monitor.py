@@ -84,7 +84,7 @@ I18N = {
         "where": "Де в БД таблиці входів (для налаштування TOOLS)",
         "no_tables": "Таблиць, схожих на login / session / page_view, не знайдено.",
         "schema_error": "Не вдалось переглянути схему БД: {e}",
-        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "desc": "Опис", "prev_period": "Попередній період", "days_short": "Днів", "pp": "п.п.", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
+        "goal_line": "🎯 Ціль {goal}% · зараз {reg}%", "goal_left": "ще {n} п.п.", "goal_ok": "ціль досягнута ✅", "inactive": "Не заходили за період", "all_active": "Усі заходили ✅", "scorecard_line": "Рядок для Scorecard", "trend4": "4 тижні, %", "incl_admins": "Враховувати розробників (адмінів)", "desc": "Опис", "prev_period": "Попередній період", "days_short": "Днів", "pp": "п.п.", "more": "Детальніше", "col_days": "Дні", "col_logins": "Входів", "col_last": "Останній вхід", "weeks8": "Регулярність по тижнях", "open": "Відкрити", "chart": "Динаміка по тижнях · регулярність, %", "never": "ніколи", "today": "сьогодні", "ago": "{n} дн тому",
     },
     "ru": {
         "nav_health": "ETL Health", "nav_db": "База данных", "nav_arch": "Архитектура",
@@ -109,7 +109,7 @@ I18N = {
         "where": "Где в БД таблицы входов (для настройки TOOLS)",
         "no_tables": "Таблиц, похожих на login / session / page_view, не найдено.",
         "schema_error": "Не удалось просмотреть схему БД: {e}",
-        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "desc": "Описание", "prev_period": "Предыдущий период", "days_short": "Дней", "pp": "п.п.", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
+        "goal_line": "🎯 Цель {goal}% · сейчас {reg}%", "goal_left": "ещё {n} п.п.", "goal_ok": "цель достигнута ✅", "inactive": "Не заходили за период", "all_active": "Все заходили ✅", "scorecard_line": "Строка для Scorecard", "trend4": "4 недели, %", "incl_admins": "Учитывать разработчиков (админов)", "desc": "Описание", "prev_period": "Предыдущий период", "days_short": "Дней", "pp": "п.п.", "more": "Подробнее", "col_days": "Дни", "col_logins": "Входов", "col_last": "Последний вход", "weeks8": "Регулярность по неделям", "open": "Открыть", "chart": "Динамика по неделям · регулярность, %", "never": "никогда", "today": "сегодня", "ago": "{n} дн назад",
     },
     "en": {
         "nav_health": "ETL Health", "nav_db": "Database", "nav_arch": "Architecture",
@@ -134,7 +134,7 @@ I18N = {
         "where": "Where login tables live in the DB (for configuring TOOLS)",
         "no_tables": "No tables that look like login / session / page_view were found.",
         "schema_error": "Could not inspect the DB schema: {e}",
-        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "desc": "Description", "prev_period": "Previous period", "days_short": "Days", "pp": "pp", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
+        "goal_line": "🎯 Goal {goal}% · now {reg}%", "goal_left": "{n} pp to go", "goal_ok": "goal reached ✅", "inactive": "No logins in period", "all_active": "Everyone logged in ✅", "scorecard_line": "Scorecard line", "trend4": "4 weeks, %", "incl_admins": "Include developers (admins)", "desc": "Description", "prev_period": "Previous period", "days_short": "Days", "pp": "pp", "more": "Details", "col_days": "Days", "col_logins": "Logins", "col_last": "Last login", "weeks8": "Regularity by week", "open": "Open", "chart": "Weekly trend · regularity, %", "never": "never", "today": "today", "ago": "{n} d ago",
     },
 }
 
@@ -183,7 +183,18 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVert
            border-bottom: 1px solid rgba(128,128,128,.5); }
 .mk-name:hover { color: #1d4ed8 !important; border-color: #1d4ed8; }
 .mk-last { margin-left: auto; font-size: .72rem; opacity: .55; white-space: nowrap; }
-.mk-desc { font-size: .78rem; opacity: .6; margin: 3px 0 10px; }
+.mk-desc { font-size: .88rem; font-weight: 500; opacity: .92; margin: 4px 0 12px; line-height: 1.35; }
+.mk-more { border-top: 1px solid rgba(128,128,128,.22); margin-top: 8px; padding-top: 7px; }
+.mk-more summary { cursor: pointer; font-size: .76rem; font-weight: 600; color: #1d4ed8; list-style: none; }
+.mk-more summary::-webkit-details-marker { display: none; }
+.mk-more summary::after { content: " ▾"; }
+.mk-more[open] summary::after { content: " ▴"; }
+.mk-tbl { width: 100%; border-collapse: collapse; font-size: .76rem; margin-top: 8px; }
+.mk-tbl th { text-align: left; font-weight: 500; font-size: .62rem; text-transform: uppercase; letter-spacing: .06em;
+             opacity: .55; padding: 2px 0; }
+.mk-tbl td { padding: 4px 0; border-top: 1px solid rgba(128,128,128,.15); }
+.mk-tbl td.n, .mk-tbl th.n { text-align: right; }
+.mk-sub { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; opacity: .55; margin: 10px 0 2px; }
 .mk-main { display: flex; align-items: flex-end; gap: 12px; }
 .mk-num { font-family: Georgia, 'Times New Roman', serif; font-size: 2.6rem; line-height: 1; letter-spacing: -0.02em; }
 .mk-num span { font-size: 1.2rem; opacity: .6; margin-left: 2px; }
@@ -367,8 +378,19 @@ def summarize(df: pd.DataFrame, now: pd.Timestamp, period: int) -> dict:
         active_emails = set(df[df["d"] >= d_start]["email"])
         inactive = sorted(e.split("@")[0] for e in base_emails if e not in active_emails)
 
+    people_rows = []
+    if not df.empty:
+        win = df[(df["d"] >= d_start) & (df["d"] <= today)]
+        days_by = win[win["d"].dt.weekday < 5].groupby("email")["d"].nunique()
+        logins_by = win.groupby("email").size()
+        last_by = df.groupby("email")["ts"].max()
+        for e in base_emails:
+            people_rows.append({"user": e.split("@")[0], "days": int(days_by.get(e, 0)),
+                                "logins": int(logins_by.get(e, 0)), "last": last_by[e]})
+        people_rows.sort(key=lambda x: (-x["days"], -x["logins"], x["user"]))
+
     return {
-        **cur, "inactive": inactive, "today": today,
+        **cur, "inactive": inactive, "today": today, "people_rows": people_rows,
         "delta": round(cur["reg"] - prev["reg"], 1),
         "weeks": weeks, "days_idle": days_idle, "people": people,
     }
@@ -421,6 +443,19 @@ def card_html(name: str, r: dict, url: str, desc: str, goal) -> str:
                      f'<b style="left:calc(100% - 2px)"></b></div>'
                      f'<small>{goal_text} · {note}</small></div>')
     inactive = ", ".join(escape(u) for u in r["inactive"]) if r["inactive"] else t("all_active")
+    rows = "".join(
+        f'<tr><td>{escape(p["user"])}</td><td class="n">{p["days"]} {of} {r["workdays"]}</td>'
+        f'<td class="n">{p["logins"]}</td><td class="n">{p["last"]:%d.%m %H:%M}</td></tr>'
+        for p in r["people_rows"])
+    wk = "".join(
+        f'<tr><td>{escape(k.replace("з ", t("from") + " ", 1))}</td><td class="n">{v:.0f}%</td></tr>'
+        for k, v in reversed(list(r["weeks"].items())))
+    more = (
+        f'<details class="mk-more"><summary>{t("more")}</summary>'
+        f'<table class="mk-tbl"><tr><th>{t("employee")}</th><th class="n">{t("col_days")}</th>'
+        f'<th class="n">{t("col_logins")}</th><th class="n">{t("col_last")}</th></tr>{rows}</table>'
+        f'<div class="mk-sub">{t("weeks8")}</div><table class="mk-tbl">{wk}</table></details>'
+    )
     return (
         f'<div class="mk-card">'
         f'<div class="mk-head"><span class="mk-dot {dot}"></span>{title}<span class="mk-last">{idle_text(r["days_idle"])}</span></div>'
@@ -435,7 +470,7 @@ def card_html(name: str, r: dict, url: str, desc: str, goal) -> str:
         f'<div><label>{t("prev_period")}</label><b>{r["reg"] - d:.0f}%</b></div></div>'
         f'<div class="mk-foot"><label>{t("inactive")}</label>{inactive}'
         f'<span class="mk-sc">{r["today"]:%Y-%m-%d} — {r["reg"]:.0f}%</span></div>'
-        f'</div>'
+        f'{more}</div>'
     )
 
 
