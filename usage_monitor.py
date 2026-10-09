@@ -558,22 +558,6 @@ def show_usage_monitor():
             t("last_login"): idle_text(r["days_idle"]),
             t("status"): status_icon(r["days_idle"]),
         })
-    # --- Разом: середнє по тулах; люди — унікальні (одна людина в кількох тулах рахується раз) ---
-    all_base = {p["user"] for r in results.values() for p in r["people_rows"]}
-    all_entered = {u for r in results.values() for u in r["people"]}
-    n_tools = len(results)
-    wk = [list(r["weeks"].values())[-4:] for r in results.values()]
-    rows.append({
-        "№": "",
-        t("tool"): "https://etl-health-monitor.streamlit.app#" + t("grand"),
-        t("desc"): t("grand_desc", n=n_tools),
-        t("users"): f"{len(all_entered)} {of} {len(all_base)}",
-        t("regularity") + " %": sum(r["reg"] for r in results.values()) / n_tools,
-        t("dyn"): sum(r["delta"] for r in results.values()) / n_tools,
-        t("trend"): [sum(w[i] for w in wk if len(w) > i) / n_tools for i in range(min(len(w) for w in wk))] if wk else [],
-        t("last_login"): "",
-        t("status"): "",
-    })
     reg_col, dyn_col, trend_col = t("regularity") + " %", t("dyn"), t("trend")
     st.dataframe(
         pd.DataFrame(rows), hide_index=True, use_container_width=True,
