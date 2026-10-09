@@ -545,8 +545,9 @@ def show_usage_monitor():
     # --- Зведення ---
     st.subheader(t("summary"))
     rows = []
-    for name, r in results.items():
+    for num, (name, r) in enumerate(results.items(), 1):
         rows.append({
+            "№": str(num),
             # посилання з #назвою: LinkColumn показує лише текст після #, клік відкриває тул
             t("tool"): (tool_url.get(name) or "https://etl-health-monitor.streamlit.app") + "#" + name,
             t("desc"): descs.get(name, ""),
@@ -563,7 +564,8 @@ def show_usage_monitor():
     n_tools = len(results)
     wk = [list(r["weeks"].values())[-4:] for r in results.values()]
     rows.append({
-        t("tool"): "https://etl-health-monitor.streamlit.app#" + t("grand") + " · " + t("tools_n", n=n_tools),
+        "№": "",
+        t("tool"): "https://etl-health-monitor.streamlit.app#" + t("grand"),
         t("desc"): t("grand_desc", n=n_tools),
         t("users"): f"{len(all_entered)} {of} {len(all_base)}",
         t("regularity") + " %": sum(r["reg"] for r in results.values()) / n_tools,
@@ -576,6 +578,7 @@ def show_usage_monitor():
     st.dataframe(
         pd.DataFrame(rows), hide_index=True, use_container_width=True,
         column_config={
+            "№": st.column_config.TextColumn("№", width="small"),
             t("tool"): st.column_config.LinkColumn(t("tool"), display_text=r"#(.*)$", width="medium"),
             reg_col: st.column_config.ProgressColumn(reg_col, format="%.0f%%", min_value=0, max_value=100),
             dyn_col: st.column_config.NumberColumn(dyn_col, format="%+.0f"),
