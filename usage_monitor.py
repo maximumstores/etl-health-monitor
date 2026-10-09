@@ -84,7 +84,7 @@ I18N = {
         "summary": "Зведення", "tool": "Інструмент", "trend": "4 тижні",
         "last_login": "Останній вхід", "status": "Статус", "dyn": "Динаміка, п.п.",
         "who": "Хто чим користується · входів за {n} дн.", "employee": "Співробітник",
-        "total": "Всього", "no_logins": "За {n} дн. входів не було.",
+        "grand_desc": "Середнє по {n} тулах; люди — унікальні", "total": "Всього", "users": "Користувачів", "grand": "Разом", "no_logins": "За {n} дн. входів не було.",
         "weekly": "% для Scorecard по тижнях", "week": "Тиждень (пн–нд)", "from": "з",
         "weekly_note": "Для Scorecard бери завершений тиждень: верхній рядок рахується за пройдені "
                        "дні поточного тижня і ще зміниться.",
@@ -109,7 +109,7 @@ I18N = {
         "summary": "Сводка", "tool": "Инструмент", "trend": "4 недели",
         "last_login": "Последний вход", "status": "Статус", "dyn": "Динамика, п.п.",
         "who": "Кто чем пользуется · входов за {n} дн.", "employee": "Сотрудник",
-        "total": "Всего", "no_logins": "За {n} дн. входов не было.",
+        "grand_desc": "Среднее по {n} тулам; люди — уникальные", "total": "Всего", "users": "Пользователей", "grand": "Итого", "no_logins": "За {n} дн. входов не было.",
         "weekly": "% для Scorecard по неделям", "week": "Неделя (пн–вс)", "from": "с",
         "weekly_note": "Для Scorecard бери завершённую неделю: верхняя строка считается за прошедшие "
                        "дни текущей недели и ещё изменится.",
@@ -134,7 +134,7 @@ I18N = {
         "summary": "Overview", "tool": "Tool", "trend": "4 weeks",
         "last_login": "Last login", "status": "Status", "dyn": "Change, pp",
         "who": "Who uses what · logins in {n} days", "employee": "Employee",
-        "total": "Total", "no_logins": "No logins in the last {n} days.",
+        "grand_desc": "Average across {n} tools; people counted once", "total": "Total", "users": "Users", "grand": "Total", "no_logins": "No logins in the last {n} days.",
         "weekly": "% for Scorecard by week", "week": "Week (Mon–Sun)", "from": "from",
         "weekly_note": "Use a completed week for Scorecard: the top row covers the elapsed days "
                        "of the current week and will still change.",
@@ -550,12 +550,28 @@ def show_usage_monitor():
             # посилання з #назвою: LinkColumn показує лише текст після #, клік відкриває тул
             t("tool"): (tool_url.get(name) or "https://etl-health-monitor.streamlit.app") + "#" + name,
             t("desc"): descs.get(name, ""),
+            t("users"): f'{r["entered"]} {of} {r["base"]}',
             t("regularity") + " %": r["reg"],
             t("dyn"): r["delta"],
             t("trend"): list(r["weeks"].values())[-4:],
             t("last_login"): idle_text(r["days_idle"]),
             t("status"): status_icon(r["days_idle"]),
         })
+    # --- Разом: середнє по тулах; люди — унікальні (одна людина в кількох тулах рахується раз) ---
+    all_base = {p["user"] for r in results.values() for p in r["people_rows"]}
+    all_entered = {u for r in results.values() for u in r["people"]}
+    n_tools = len(results)
+    wk = [list(r["weeks"].values())[-4:] for r in results.values()]
+    rows.append({
+        t("tool"): "https://etl-health-monitor.streamlit.app#" + t("grand"),
+        t("desc"): t("grand_desc", n=n_tools),
+        t("users"): f"{len(all_entered)} {of} {len(all_base)}",
+        t("regularity") + " %": sum(r["reg"] for r in results.values()) / n_tools,
+        t("dyn"): sum(r["delta"] for r in results.values()) / n_tools,
+        t("trend"): [sum(w[i] for w in wk if len(w) > i) / n_tools for i in range(min(len(w) for w in wk))] if wk else [],
+        t("last_login"): "",
+        t("status"): "",
+    })
     reg_col, dyn_col, trend_col = t("regularity") + " %", t("dyn"), t("trend")
     st.dataframe(
         pd.DataFrame(rows), hide_index=True, use_container_width=True,
