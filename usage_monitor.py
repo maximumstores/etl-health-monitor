@@ -46,6 +46,9 @@ TOOLS = [
      "url": "https://insights-engine-radar.streamlit.app", "goal": 80,
      "desc": {"uk": "Інсайти з відгуків і запитів клієнтів", "ru": "Инсайты из отзывов и запросов клиентов",
               "en": "Insights from customer reviews and queries"}},
+    {"name": "AEO Radar", "schema": "aeo", "url": "https://aeo-monitor.streamlit.app", "goal": 80,
+     "desc": {"uk": "Видимість бренду у відповідях AI (Share of Voice)", "ru": "Видимость бренда в ответах AI (Share of Voice)",
+              "en": "Brand visibility in AI answers (Share of Voice)"}},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
