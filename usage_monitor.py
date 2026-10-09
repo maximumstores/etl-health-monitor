@@ -53,6 +53,9 @@ TOOLS = [
     {"name": "Supplier Finder", "schema": "supplier_finder", "url": "https://merino-supplier-finder.streamlit.app", "goal": 80,
      "desc": {"uk": "Пошук постачальників мериноса та аутріч", "ru": "Поиск поставщиков мериноса и аутрич",
               "en": "Merino supplier search and outreach"}},
+    {"name": "Listing Analyzer", "schema": "listing_analyzer", "url": "https://listing-analyze.streamlit.app", "goal": 80,
+     "desc": {"uk": "AI-аналіз лістингів Amazon: контент, фото, A+, бенчмарк", "ru": "AI-анализ листингов Amazon: контент, фото, A+, бенчмарк",
+              "en": "AI analysis of Amazon listings: content, photos, A+, benchmark"}},
     # {"name": "Check Parent Rating", "schema": "check_parent_rating"},   # Google Sheets
 ]
 
